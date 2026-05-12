@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Worklog SF</title>
+  <link rel="icon" type="image/png" href="/logo_empresa.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════ HEADER -->
+<header class="app-header">
+  <div class="header-left">
+    <img src="/logo_empresa.png" alt="Logo" class="logo">
+  </div>
+  <div class="header-right">
+    <span id="auth-status" class="badge badge-gray">Verificando...</span>
+    <a href="/auth/login" id="btn-login" class="btn btn-sm btn-primary hidden">Conectar Jira</a>
+    <button id="btn-logout" class="btn btn-sm btn-outline hidden" onclick="logout()">Cerrar sesión</button>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════ MAIN -->
+<main class="app-main">
+
+  <!-- ── Panel de control ─────────────────────────────────────── -->
+  <section class="control-panel card">
+    <div class="control-row">
+
+      <div class="control-group">
+        <label>Desde</label>
+        <input type="date" id="date-from" />
+      </div>
+      <div class="control-group">
+        <label>Hasta</label>
+        <input type="date" id="date-to" />
+      </div>
+
+      <div class="control-group shortcuts">
+        <label>Atajos</label>
+        <div class="shortcut-btns">
+          <button class="btn btn-xs btn-outline" onclick="setRange('thisWeek')">Esta semana</button>
+          <button class="btn btn-xs btn-outline" onclick="setRange('lastWeek')">Sem anterior</button>
+          <button class="btn btn-xs btn-outline" onclick="setRange('thisMonth')">Este mes</button>
+          <button class="btn btn-xs btn-outline" onclick="setRange('lastMonth')">Mes anterior</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>&nbsp;</label>
+        <button id="btn-generar" class="btn btn-primary btn-lg" onclick="generarReporte()">
+          ▶ Generar Reporte
+        </button>
+      </div>
+
+    </div>
+
+    <div class="control-row mapping-row">
+      <div class="mapping-status" id="mapping-status">
+        <span class="badge badge-gray">Mapping: no cargado</span>
+      </div>
+      <div class="mapping-actions">
+        <label class="btn btn-sm btn-outline upload-label" for="mapping-file">
+          📂 Subir Mapping (.xlsx / .csv)
+        </label>
+        <input type="file" id="mapping-file" accept=".xlsx,.xls,.csv" onchange="uploadMapping(this)" hidden />
+        <a href="/api/mapping/download-sample" class="btn btn-sm btn-outline">⬇ Descargar Ejemplo</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Loader ───────────────────────────────────────────────── -->
+  <div id="loader" class="loader hidden">
+    <div class="spinner"></div>
+    <p id="loader-msg">Extrayendo datos de Jira...</p>
+  </div>
+
+  <!-- ── Warning de período ────────────────────────────────────── -->
+  <div id="warning-msg" class="warning-banner hidden"></div>
+
+  <!-- ── KPIs ─────────────────────────────────────────────────── -->
+  <section id="kpis" class="kpis hidden">
+    <div class="kpi-card kpi-card--period">
+      <div class="kpi-value kpi-period" id="kpi-periodo">–</div>
+      <div class="kpi-label">Período del reporte</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value" id="kpi-horas">–</div>
+      <div class="kpi-label">Horas totales</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value" id="kpi-personas">–</div>
+      <div class="kpi-label">Personas</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value" id="kpi-issues">–</div>
+      <div class="kpi-label">Issues con registro</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value" id="kpi-entradas">–</div>
+      <div class="kpi-label">Entradas de worklog</div>
+    </div>
+  </section>
+
+  <!-- ── Tabs ──────────────────────────────────────────────────── -->
+  <section id="report-section" class="hidden">
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('tab-personas')">👤 Por Persona</button>
+      <button class="tab" onclick="switchTab('tab-proyectos')">📁 Por Proyecto</button>
+      <button class="tab" onclick="switchTab('tab-cc')">🏷 Centro de Costo</button>
+      <button class="tab" onclick="switchTab('tab-distribucion')">📊 Distribución %</button>
+      <button class="tab" onclick="switchTab('tab-detalle')">📋 Detalle Completo</button>
+      <button class="tab" onclick="switchTab('tab-mapping'); cargarMapping()">⚙ Mapping</button>
+    </div>
+
+    <!-- ── Tab: Personas ──────────────────────────────────────── -->
+    <div id="tab-personas" class="tab-content card active">
+      <div class="table-header">
+        <h3>Resumen por Persona</h3>
+        <p class="table-hint">Hacé clic en cualquier fila para asignar Centro de Costo, Función y si es Productivo.</p>
+        <div class="table-actions">
+          <input type="text" class="search-input" placeholder="🔍 Filtrar..." oninput="filterTable('tbl-personas', this.value)" />
+          <button class="btn btn-sm btn-outline" onclick="exportarExcel('resumenPersona')">⬇ Excel</button>
+          <button class="btn btn-sm btn-outline" onclick="exportarCSV('resumenPersona')">⬇ CSV</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="tbl-personas">
+          <thead>
+            <tr>
+              <th onclick="sortTable('tbl-personas',0)">Nombre Jira ↕</th>
+              <th onclick="sortTable('tbl-personas',1)">Nombre Nómina ↕</th>
+              <th onclick="sortTable('tbl-personas',2)">Función ↕</th>
+              <th onclick="sortTable('tbl-personas',3)" class="num">Horas ↕</th>
+              <th onclick="sortTable('tbl-personas',4)" class="num">Entradas ↕</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Tab: Proyectos ─────────────────────────────────────── -->
+    <div id="tab-proyectos" class="tab-content card hidden">
+      <div class="table-header">
+        <h3>Resumen por Proyecto</h3>
+        <div class="table-actions">
+          <input type="text" class="search-input" placeholder="🔍 Filtrar..." oninput="filterTable('tbl-proyectos', this.value)" />
+          <button class="btn btn-sm btn-outline" onclick="exportarExcel('resumenProyecto')">⬇ Excel</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="tbl-proyectos">
+          <thead>
+            <tr>
+              <th onclick="sortTable('tbl-proyectos',0)">Proyecto ↕</th>
+              <th onclick="sortTable('tbl-proyectos',1)" class="num">Horas ↕</th>
+              <th onclick="sortTable('tbl-proyectos',2)" class="num">Personas ↕</th>
+              <th onclick="sortTable('tbl-proyectos',3)" class="num">Entradas ↕</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Tab: Centro de Costo ───────────────────────────────── -->
+    <div id="tab-cc" class="tab-content card hidden">
+      <div class="table-header">
+        <h3>Resumen por Centro de Costo</h3>
+        <div class="table-actions">
+          <input type="text" class="search-input" placeholder="🔍 Filtrar..." oninput="filterTable('tbl-cc', this.value)" />
+          <button class="btn btn-sm btn-outline" onclick="exportarExcel('resumenCentroCosto')">⬇ Excel</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="tbl-cc">
+          <thead>
+            <tr>
+              <th onclick="sortTable('tbl-cc',0)">Centro de Costo ↕</th>
+              <th onclick="sortTable('tbl-cc',1)" class="num">Total Horas ↕</th>
+              <th onclick="sortTable('tbl-cc',2)" class="num">Productivo ↕</th>
+              <th onclick="sortTable('tbl-cc',3)" class="num">Improductivo ↕</th>
+              <th onclick="sortTable('tbl-cc',4)" class="num">% Prod ↕</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Tab: Distribución % ──────────────────────────────── -->
+    <div id="tab-distribucion" class="tab-content card hidden">
+      <div class="table-header">
+        <h3>Distribución por Centro de Costo</h3>
+        <div class="table-actions">
+          <button class="btn btn-sm btn-outline" onclick="exportarExcel('resumenCentroCosto')">⬇ Excel</button>
+        </div>
+      </div>
+      <div class="dist-layout">
+        <div class="dist-table-wrap">
+          <table id="tbl-dist">
+            <thead>
+              <tr>
+                <th>Centro de Costo</th>
+                <th class="num">Horas</th>
+                <th class="num">% del Total</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+              <tr class="dist-total-row">
+                <td><strong>Suma total</strong></td>
+                <td class="num" id="dist-total-horas"></td>
+                <td class="num"><strong>100,00%</strong></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div class="dist-chart-wrap">
+          <canvas id="chart-cc"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tab: Detalle ───────────────────────────────────────── -->
+    <div id="tab-detalle" class="tab-content card hidden">
+      <div class="table-header">
+        <h3>Detalle Completo de Worklogs</h3>
+        <div class="table-actions">
+          <input type="text" class="search-input" placeholder="🔍 Filtrar..." oninput="filterTable('tbl-detalle', this.value)" />
+          <button class="btn btn-sm btn-outline" onclick="exportarExcel('detalle')">⬇ Excel</button>
+          <button class="btn btn-sm btn-outline" onclick="exportarCSV('detalle')">⬇ CSV</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="tbl-detalle">
+          <thead>
+            <tr>
+              <th onclick="sortTable('tbl-detalle',0)">Fecha ↕</th>
+              <th onclick="sortTable('tbl-detalle',1)">Issue ↕</th>
+              <th onclick="sortTable('tbl-detalle',2)">Resumen</th>
+              <th onclick="sortTable('tbl-detalle',3)">Autor ↕</th>
+              <th onclick="sortTable('tbl-detalle',4)">Nombre Nómina ↕</th>
+              <th onclick="sortTable('tbl-detalle',5)">Proyecto ↕</th>
+              <th onclick="sortTable('tbl-detalle',6)">Centro de Costo ↕</th>
+              <th onclick="sortTable('tbl-detalle',7)">Prod/Improd ↕</th>
+              <th onclick="sortTable('tbl-detalle',8)" class="num">Horas ↕</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ═══════════════════════════════════ MAPPING EDITOR (siempre visible) -->
+  <section id="mapping-editor" class="card">
+    <div class="table-header">
+      <h3>⚙ Editor de Mapping</h3>
+      <div class="table-actions">
+        <input type="text" class="search-input" placeholder="🔍 Filtrar clave o proyecto..." oninput="filterTable('tbl-mapping', this.value)" />
+        <button class="btn btn-sm btn-primary" onclick="abrirFormMapping(null)">+ Nueva entrada</button>
+      </div>
+    </div>
+
+    <!-- Formulario inline -->
+    <div id="mapping-form" class="mapping-form hidden">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Clave Jira <span class="req">*</span></label>
+          <input id="fm-clave" type="text" placeholder="Ej: NW-12" />
+        </div>
+        <div class="form-group">
+          <label>Centro de Costo</label>
+          <input id="fm-cc" type="text" placeholder="Ej: CC-001" />
+        </div>
+        <div class="form-group">
+          <label>Productivo / Improductivo</label>
+          <select id="fm-prod">
+            <option value="">-- Sin asignar --</option>
+            <option value="Productivo">Productivo</option>
+            <option value="Improductivo">Improductivo</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Proyecto</label>
+          <input id="fm-proyecto" type="text" placeholder="Ej: Portal Cliente" />
+        </div>
+        <div class="form-group">
+          <label>Nombre</label>
+          <input id="fm-nombre" type="text" placeholder="Nombre en Jira" />
+        </div>
+        <div class="form-group">
+          <label>Función</label>
+          <input id="fm-funcion" type="text" placeholder="Ej: Desarrollador" />
+        </div>
+        <div class="form-group">
+          <label>Nombre Nómina</label>
+          <input id="fm-nomina" type="text" placeholder="Ej: PEREZ JUAN" />
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="guardarEntradaMapping()">💾 Guardar</button>
+        <button class="btn btn-outline" onclick="cerrarFormMapping()">Cancelar</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table id="tbl-mapping">
+        <thead>
+          <tr>
+            <th onclick="sortTable('tbl-mapping',0)">Clave ↕</th>
+            <th onclick="sortTable('tbl-mapping',1)">Centro de Costo ↕</th>
+            <th onclick="sortTable('tbl-mapping',2)">Prod/Improd ↕</th>
+            <th onclick="sortTable('tbl-mapping',3)">Proyecto ↕</th>
+            <th onclick="sortTable('tbl-mapping',4)">Nombre ↕</th>
+            <th onclick="sortTable('tbl-mapping',5)">Función ↕</th>
+            <th onclick="sortTable('tbl-mapping',6)">Nómina ↕</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Error ─────────────────────────────────────────────────── -->
+  <div id="error-msg" class="error-banner hidden"></div>
+
+</main>
+
+<!-- ═══════════════ MODAL: editar persona ══════════════════ -->
+<div id="persona-modal-backdrop" class="modal-backdrop hidden" onclick="cerrarModalPersona()"></div>
+<div id="persona-modal" class="modal hidden">
+  <div class="modal-header">
+    <h3 id="modal-titulo">Asignar datos a persona</h3>
+    <button class="btn-icon" onclick="cerrarModalPersona()">✕</button>
+  </div>
+  <div class="modal-body">
+    <input type="hidden" id="pm-email" />
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Centro de Costo</label>
+        <input id="pm-cc" type="text" placeholder="Ej: CC-001" />
+      </div>
+      <div class="form-group">
+        <label>Función</label>
+        <input id="pm-funcion" type="text" placeholder="Ej: Desarrollador" />
+      </div>
+      <div class="form-group">
+        <label>Productivo / Improductivo</label>
+        <select id="pm-prod">
+          <option value="">-- Sin asignar --</option>
+          <option value="Productivo">Productivo</option>
+          <option value="Improductivo">Improductivo</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Nombre Nómina</label>
+        <input id="pm-nomina" type="text" placeholder="Ej: PEREZ JUAN" />
+      </div>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-primary" onclick="guardarPersona()">💾 Guardar</button>
+    <button class="btn btn-outline" onclick="cerrarModalPersona()">Cancelar</button>
+  </div>
+</div>
+
+<!-- SheetJS para export Excel en browser -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<!-- Chart.js para gráfico de distribución -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
