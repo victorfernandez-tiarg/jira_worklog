@@ -65,18 +65,19 @@ router.post('/extract', requireAuth, async (req, res) => {
 
     // 1. Buscar issues con worklogs en el rango
     let allIssues = [];
-    let startAt   = 0;
+    let nextPageToken = undefined;
     while (true) {
-      const r = await jira.post('/search/jql', {
+      const body = {
         jql: `worklogDate >= "${from}" AND worklogDate <= "${to}" ORDER BY updated DESC`,
-        fields: 'summary,issuetype,project,status,assignee,worklog',
-        startAt,
+        fields: ['summary','issuetype','project','status','assignee','worklog'],
         maxResults: 100
-      });
+      };
+      if (nextPageToken) body.nextPageToken = nextPageToken;
+      const r = await jira.post('/search/jql', body);
       const batch = r.data.issues || [];
       allIssues = allIssues.concat(batch);
-      if (allIssues.length >= r.data.total || !batch.length) break;
-      startAt += 100;
+      nextPageToken = r.data.nextPageToken;
+      if (!nextPageToken || !batch.length) break;
     }
 
     // 2. Fetch paralelo de worklogs para issues con paginación (>20)
