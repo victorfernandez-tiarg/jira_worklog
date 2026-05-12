@@ -39,5 +39,5 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\n  Jira Worklog Dashboard corriendo en http://localhost:${PORT}\n`);
+  console.log(`\n  Jira Worklog Dashboard corriendo en http://localhost:${PORT} (v2)\n`);
 });
