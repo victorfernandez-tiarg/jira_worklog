@@ -69,7 +69,7 @@ router.post('/extract', requireAuth, async (req, res) => {
     while (true) {
       const r = await jira.post('/search/jql', {
         jql: `worklogDate >= "${from}" AND worklogDate <= "${to}" ORDER BY updated DESC`,
-        fields: ['summary','issuetype','project','status','assignee','worklog'],
+        fields: 'summary,issuetype,project,status,assignee,worklog',
         startAt,
         maxResults: 100
       });
