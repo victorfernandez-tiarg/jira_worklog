@@ -22,6 +22,15 @@ function getPrefixMap() {
   } catch { return {}; }
 }
 
+// ─── Carga person_functions.json ────────────────────────────────────────────
+function getPersonFunctions() {
+  try {
+    const p = path.join(DATA_DIR, 'person_functions.json');
+    if (!fs.existsSync(p)) return {};
+    return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch { return {}; }
+}
+
 // ─── Helper: construir sub-conjunto desde caché ───────────────────────────
 function buildSubset(entry, from, to) {
   const detalle = entry.data.detalle.filter(r => r.fecha >= from && r.fecha <= to);
@@ -58,10 +67,11 @@ router.post('/extract', requireAuth, async (req, res) => {
   }
 
   try {
-    const jira       = buildJiraClient(req);
-    const mapping    = getMapping();
-    const personas   = getPersonas();
-    const prefixMap  = getPrefixMap();
+    const jira          = buildJiraClient(req);
+    const mapping       = getMapping();
+    const personas      = getPersonas();
+    const prefixMap     = getPrefixMap();
+    const personFuncs   = getPersonFunctions();
 
     // 1. Buscar issues con worklogs en el rango
     let allIssues = [];
@@ -132,7 +142,7 @@ router.post('/extract', requireAuth, async (req, res) => {
           prodImproductivo: pm.prodImproductivo || mapRow['Prod / Improductivo']  || '',
           proyectoMapeado:  mapRow['Proyecto']  || '',
           nombre:           p.nombreNomina      || mapRow['Nombre']               || '',
-          funcion:          p.funcion           || mapRow['Funcion']              || '',
+          funcion:          personFuncs[wl.author?.displayName] || p.funcion || mapRow['Funcion'] || '',
           nombreNomina:     p.nombreNomina      || mapRow['Nombre nomina']        || ''
         });
       }

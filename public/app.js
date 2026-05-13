@@ -283,13 +283,11 @@ async function renderReport(data) {
       tbodyPersonas.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-soft);padding:20px">Sin datos</td></tr>';
     } else {
       tbodyPersonas.innerHTML = data.resumenPersona.map(r => {
-        const p   = personasCache[r.autorEmail || r.email] || {};
-        const fn  = p.funcion      || r.funcion      || '–';
-        const nom = p.nombreNomina || r.nombreNomina  || '–';
+        const p  = personasCache[r.autorEmail || r.email] || {};
+        const fn = p.funcion || r.funcion || '–';
         return `<tr data-email="${escHtml(r.autorEmail || r.email || '')}"
                     onclick="abrirModalPersona('${escHtml(r.autorEmail||r.email||'')}','${escHtml(r.autor||'')}')">
           <td>${escHtml(r.autor)}</td>
-          <td>${escHtml(nom)}</td>
           <td>${escHtml(fn)}</td>
           <td class="num">${barCell(r.totalHoras, maxHorasPersona)}</td>
           <td class="num">${r.entradas}</td>
@@ -619,8 +617,7 @@ function actualizarFilaPersona(email, datos) {
   rows.forEach(tr => {
     if (tr.dataset.email === email) {
       const cells = tr.querySelectorAll('td');
-      if (cells[1]) cells[1].textContent = datos.nombreNomina || '–';
-      if (cells[2]) cells[2].textContent = datos.funcion      || '–';
+      if (cells[1]) cells[1].textContent = datos.funcion || '–';
     }
   });
 }
