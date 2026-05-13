@@ -389,6 +389,7 @@ function renderDistribucion(resumenCC) {
 
   _chartCC = new Chart(canvas, {
     type: 'doughnut',
+    plugins: [ChartDataLabels],
     data: {
       labels,
       datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }]
@@ -400,10 +401,11 @@ function renderDistribucion(resumenCC) {
           position: 'right',
           labels: { font: { size: 12 }, boxWidth: 14, padding: 10 }
         },
-        tooltip: {
-          callbacks: {
-            label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString('es-AR', {minimumFractionDigits: 2})}%`
-          }
+        tooltip: { enabled: false },
+        datalabels: {
+          formatter: (val) => val >= 4 ? `${val.toLocaleString('es-AR', {minimumFractionDigits: 1, maximumFractionDigits: 1})}%` : '',
+          font: { size: 11, weight: '700' },
+          color: '#fff'
         }
       }
     }
