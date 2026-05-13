@@ -113,7 +113,6 @@
       <button class="tab" onclick="switchTab('tab-distribucion')">📊 Distribución %</button>
       <button class="tab" onclick="switchTab('tab-graficos'); renderGraficos()">📈 Gráficos</button>
       <button class="tab" onclick="switchTab('tab-detalle')">📋 Detalle Completo</button>
-      <button class="tab" onclick="switchTab('tab-mapping'); cargarMapping()">⚙ Mapping</button>
     </div>
 
     <!-- ── Tab: Personas ──────────────────────────────────────── -->
@@ -353,77 +352,6 @@
 
   </section>
 
-  <!-- ═══════════════════════════════════ MAPPING EDITOR (siempre visible) -->
-  <section id="mapping-editor" class="card">
-    <div class="table-header">
-      <h3>⚙ Editor de Mapping</h3>
-      <div class="table-actions">
-        <input type="text" class="search-input" placeholder="🔍 Filtrar clave o proyecto..." oninput="filterTable('tbl-mapping', this.value)" />
-        <button class="btn btn-sm btn-primary" onclick="abrirFormMapping(null)">+ Nueva entrada</button>
-      </div>
-    </div>
-
-    <!-- Formulario inline -->
-    <div id="mapping-form" class="mapping-form hidden">
-      <div class="form-grid">
-        <div class="form-group">
-          <label>Clave Jira <span class="req">*</span></label>
-          <input id="fm-clave" type="text" placeholder="Ej: NW-12" />
-        </div>
-        <div class="form-group">
-          <label>Centro de Costo</label>
-          <input id="fm-cc" type="text" placeholder="Ej: CC-001" />
-        </div>
-        <div class="form-group">
-          <label>Productivo / Improductivo</label>
-          <select id="fm-prod">
-            <option value="">-- Sin asignar --</option>
-            <option value="Productivo">Productivo</option>
-            <option value="Improductivo">Improductivo</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Proyecto</label>
-          <input id="fm-proyecto" type="text" placeholder="Ej: Portal Cliente" />
-        </div>
-        <div class="form-group">
-          <label>Nombre</label>
-          <input id="fm-nombre" type="text" placeholder="Nombre en Jira" />
-        </div>
-        <div class="form-group">
-          <label>Función</label>
-          <input id="fm-funcion" type="text" placeholder="Ej: Desarrollador" />
-        </div>
-        <div class="form-group">
-          <label>Nombre Nómina</label>
-          <input id="fm-nomina" type="text" placeholder="Ej: PEREZ JUAN" />
-        </div>
-      </div>
-      <div class="form-actions">
-        <button class="btn btn-primary" onclick="guardarEntradaMapping()">💾 Guardar</button>
-        <button class="btn btn-outline" onclick="cerrarFormMapping()">Cancelar</button>
-      </div>
-    </div>
-
-    <div class="table-wrap">
-      <table id="tbl-mapping">
-        <thead>
-          <tr>
-            <th onclick="sortTable('tbl-mapping',0)">Clave ↕</th>
-            <th onclick="sortTable('tbl-mapping',1)">Centro de Costo ↕</th>
-            <th onclick="sortTable('tbl-mapping',2)">Prod/Improd ↕</th>
-            <th onclick="sortTable('tbl-mapping',3)">Proyecto ↕</th>
-            <th onclick="sortTable('tbl-mapping',4)">Nombre ↕</th>
-            <th onclick="sortTable('tbl-mapping',5)">Función ↕</th>
-            <th onclick="sortTable('tbl-mapping',6)">Nómina ↕</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
-
   <!-- ── Error ─────────────────────────────────────────────────── -->
   <div id="error-msg" class="error-banner hidden"></div>
 
@@ -469,8 +397,9 @@
 
 <!-- SheetJS para export Excel en browser -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-<!-- Chart.js para gráfico de distribución -->
+<!-- Chart.js + datalabels plugin -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

@@ -521,8 +521,10 @@ function renderBar(canvasId, labels, data, label, colors, indexAxis) {
   const canvas = document.getElementById(canvasId);
   if (!canvas || typeof Chart === 'undefined') return;
   if (_charts[canvasId]) { _charts[canvasId].destroy(); }
+  const total = data.reduce((s, v) => s + v, 0);
   _charts[canvasId] = new Chart(canvas, {
     type: 'bar',
+    plugins: [ChartDataLabels],
     data: {
       labels,
       datasets: [{
@@ -538,10 +540,20 @@ function renderBar(canvasId, labels, data, label, colors, indexAxis) {
       responsive: true,
       plugins: {
         legend: { display: false },
-        tooltip: {
-          callbacks: { label: ctx => ` ${ctx.parsed[indexAxis === 'y' ? 'x' : 'y'].toLocaleString('es-AR')} hs` }
+        tooltip: { enabled: false },
+        datalabels: {
+          anchor: 'end',
+          align: 'end',
+          formatter: (val) => {
+            const pct = total > 0 ? (val / total * 100).toFixed(1) : 0;
+            return `${val.toLocaleString('es-AR')} hs (${pct}%)`;
+          },
+          font: { size: 10, weight: '600' },
+          color: 'var(--text)',
+          clip: false
         }
       },
+      layout: { padding: { right: indexAxis === 'y' ? 120 : 0, top: indexAxis !== 'y' ? 24 : 0 } },
       scales: {
         x: { ticks: { font: { size: 11 } }, grid: { display: indexAxis !== 'y' } },
         y: { ticks: { font: { size: 11 } }, grid: { display: indexAxis === 'y' } }
@@ -557,6 +569,7 @@ function renderDoughnut(canvasId, labels, data) {
   const total = data.reduce((s, v) => s + v, 0);
   _charts[canvasId] = new Chart(canvas, {
     type: 'doughnut',
+    plugins: [ChartDataLabels],
     data: {
       labels,
       datasets: [{ data, backgroundColor: PALETTE.slice(0, labels.length), borderWidth: 2, borderColor: '#fff' }]
@@ -565,13 +578,14 @@ function renderDoughnut(canvasId, labels, data) {
       responsive: true,
       plugins: {
         legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12, padding: 8 } },
-        tooltip: {
-          callbacks: {
-            label: ctx => {
-              const pct = total > 0 ? (ctx.parsed / total * 100).toFixed(1) : 0;
-              return ` ${ctx.label}: ${ctx.parsed.toLocaleString('es-AR')} hs (${pct}%)`;
-            }
-          }
+        tooltip: { enabled: false },
+        datalabels: {
+          formatter: (val) => {
+            const pct = total > 0 ? (val / total * 100).toFixed(1) : 0;
+            return pct >= 4 ? `${pct}%` : '';
+          },
+          font: { size: 11, weight: '700' },
+          color: '#fff'
         }
       }
     }
