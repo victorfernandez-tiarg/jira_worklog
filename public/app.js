@@ -522,6 +522,11 @@ function renderBar(canvasId, labels, data, label, colors, indexAxis) {
   if (!canvas || typeof Chart === 'undefined') return;
   if (_charts[canvasId]) { _charts[canvasId].destroy(); }
   const total = data.reduce((s, v) => s + v, 0);
+
+  // Qué filtro controla este gráfico
+  const filterMap = { 'chart-cc-bar': 'fil-cc', 'chart-personas': null };
+  const filterId = filterMap[canvasId];
+
   _charts[canvasId] = new Chart(canvas, {
     type: 'bar',
     plugins: [ChartDataLabels],
@@ -538,6 +543,26 @@ function renderBar(canvasId, labels, data, label, colors, indexAxis) {
     options: {
       indexAxis: indexAxis || 'x',
       responsive: true,
+      cursor: filterId ? 'pointer' : 'default',
+      onClick: filterId ? (evt, elements) => {
+        if (!elements.length) return;
+        const clicked = labels[elements[0].index];
+        const sel = document.getElementById(filterId);
+        if (!sel) return;
+        // Toggle: si ya estaba activo, limpiar
+        if (sel.value === clicked) {
+          sel.value = '';
+        } else {
+          sel.value = clicked;
+          // Si la opción no existe aún en el select, agregarla
+          if (!Array.from(sel.options).find(o => o.value === clicked)) {
+            const o = document.createElement('option');
+            o.value = clicked; o.textContent = clicked;
+            sel.appendChild(o);
+          }
+        }
+        renderGraficos();
+      } : undefined,
       plugins: {
         legend: { display: false },
         tooltip: { enabled: false },
@@ -567,6 +592,10 @@ function renderDoughnut(canvasId, labels, data) {
   if (!canvas || typeof Chart === 'undefined') return;
   if (_charts[canvasId]) { _charts[canvasId].destroy(); }
   const total = data.reduce((s, v) => s + v, 0);
+
+  // chart-funciones → filtro por función
+  const filterId = canvasId === 'chart-funciones' ? 'fil-funcion' : null;
+
   _charts[canvasId] = new Chart(canvas, {
     type: 'doughnut',
     plugins: [ChartDataLabels],
@@ -576,6 +605,14 @@ function renderDoughnut(canvasId, labels, data) {
     },
     options: {
       responsive: true,
+      onClick: filterId ? (evt, elements) => {
+        if (!elements.length) return;
+        const clicked = labels[elements[0].index];
+        const sel = document.getElementById(filterId);
+        if (!sel) return;
+        sel.value = sel.value === clicked ? '' : clicked;
+        renderGraficos();
+      } : undefined,
       plugins: {
         legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12, padding: 8 } },
         tooltip: { enabled: false },
