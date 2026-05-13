@@ -410,6 +410,209 @@ function renderDistribucion(resumenCC) {
   });
 }
 
+// ═══════════════════════════════════════════════════════════
+// GRÁFICOS INTERACTIVOS
+// ═══════════════════════════════════════════════════════════
+const _charts = {};  // instancias Chart.js reutilizables
+
+const PALETTE = [
+  '#4F81BD','#C0504D','#9BBB59','#8064A2','#4BACC6','#F79646',
+  '#2C4770','#8B0000','#2E7D32','#4A148C','#006064','#BF360C',
+  '#0D47A1','#880E4F','#1B5E20','#311B92','#004D40','#E65100',
+  '#37474F','#795548','#00838F','#558B2F'
+];
+
+function renderGraficos() {
+  if (!reportData) return;
+
+  const filFun  = document.getElementById('fil-funcion')?.value  || '';
+  const filCC   = document.getElementById('fil-cc')?.value       || '';
+  const filProd = document.getElementById('fil-prod')?.value     || '';
+
+  // Poblar selects la primera vez
+  poblarSelectGraficos();
+
+  // Filtrar detalle
+  let rows = reportData.detalle;
+  if (filFun)  rows = rows.filter(r => r.funcion === filFun);
+  if (filCC)   rows = rows.filter(r => r.centroCosto === filCC);
+  if (filProd) rows = rows.filter(r => r.prodImproductivo === filProd);
+
+  // ── 1. Horas por persona (top 15) ─────────────────────────
+  {
+    const map = {};
+    for (const r of rows) {
+      map[r.autor] = (map[r.autor] || 0) + r.horasLogueadas;
+    }
+    const sorted = Object.entries(map).sort((a,b) => b[1]-a[1]).slice(0, 15);
+    renderBar('chart-personas', sorted.map(x=>x[0]), sorted.map(x=>Math.round(x[1]*100)/100), 'Horas', PALETTE, 'y');
+  }
+
+  // ── 2. Horas por función ───────────────────────────────────
+  {
+    const map = {};
+    for (const r of rows) {
+      const key = r.funcion || 'Sin función';
+      map[key] = (map[key] || 0) + r.horasLogueadas;
+    }
+    const sorted = Object.entries(map).sort((a,b) => b[1]-a[1]);
+    renderDoughnut('chart-funciones', sorted.map(x=>x[0]), sorted.map(x=>Math.round(x[1]*100)/100));
+  }
+
+  // ── 3. Horas por CC ────────────────────────────────────────
+  {
+    const map = {};
+    for (const r of rows) {
+      const key = r.centroCosto || 'Sin CC';
+      map[key] = (map[key] || 0) + r.horasLogueadas;
+    }
+    const sorted = Object.entries(map).sort((a,b) => b[1]-a[1]);
+    renderBar('chart-cc-bar', sorted.map(x=>x[0]), sorted.map(x=>Math.round(x[1]*100)/100), 'Horas', PALETTE, 'y');
+  }
+
+  // ── 4. Evolución temporal ──────────────────────────────────
+  {
+    const map = {};
+    for (const r of rows) {
+      map[r.fecha] = (map[r.fecha] || 0) + r.horasLogueadas;
+    }
+    const dates  = Object.keys(map).sort();
+    const values = dates.map(d => Math.round(map[d]*100)/100);
+    renderLine('chart-timeline', dates, values);
+  }
+}
+
+function poblarSelectGraficos() {
+  if (!reportData) return;
+  const selFun = document.getElementById('fil-funcion');
+  const selCC  = document.getElementById('fil-cc');
+  if (!selFun || !selCC) return;
+
+  // Solo poblar una vez (si ya tiene opciones, no repoblar)
+  if (selFun.options.length > 1) return;
+
+  const funciones = [...new Set(reportData.detalle.map(r => r.funcion).filter(Boolean))].sort();
+  const ccs       = [...new Set(reportData.detalle.map(r => r.centroCosto).filter(Boolean))].sort();
+
+  funciones.forEach(f => {
+    const o = document.createElement('option'); o.value = f; o.textContent = f;
+    selFun.appendChild(o);
+  });
+  ccs.forEach(c => {
+    const o = document.createElement('option'); o.value = c; o.textContent = c;
+    selCC.appendChild(o);
+  });
+}
+
+function limpiarFiltrosGraficos() {
+  ['fil-funcion','fil-cc','fil-prod'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  // Forzar repoblado de selects en próximo render
+  const selFun = document.getElementById('fil-funcion');
+  if (selFun) while (selFun.options.length > 1) selFun.remove(1);
+  const selCC = document.getElementById('fil-cc');
+  if (selCC) while (selCC.options.length > 1) selCC.remove(1);
+  renderGraficos();
+}
+
+function renderBar(canvasId, labels, data, label, colors, indexAxis) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (_charts[canvasId]) { _charts[canvasId].destroy(); }
+  _charts[canvasId] = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label,
+        data,
+        backgroundColor: colors.slice(0, labels.length),
+        borderRadius: 4,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      indexAxis: indexAxis || 'x',
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: ctx => ` ${ctx.parsed[indexAxis === 'y' ? 'x' : 'y'].toLocaleString('es-AR')} hs` }
+        }
+      },
+      scales: {
+        x: { ticks: { font: { size: 11 } }, grid: { display: indexAxis !== 'y' } },
+        y: { ticks: { font: { size: 11 } }, grid: { display: indexAxis === 'y' } }
+      }
+    }
+  });
+}
+
+function renderDoughnut(canvasId, labels, data) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (_charts[canvasId]) { _charts[canvasId].destroy(); }
+  const total = data.reduce((s, v) => s + v, 0);
+  _charts[canvasId] = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: PALETTE.slice(0, labels.length), borderWidth: 2, borderColor: '#fff' }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12, padding: 8 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const pct = total > 0 ? (ctx.parsed / total * 100).toFixed(1) : 0;
+              return ` ${ctx.label}: ${ctx.parsed.toLocaleString('es-AR')} hs (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderLine(canvasId, labels, data) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (_charts[canvasId]) { _charts[canvasId].destroy(); }
+  _charts[canvasId] = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Horas',
+        data,
+        fill: true,
+        tension: 0.3,
+        borderColor: '#4F81BD',
+        backgroundColor: 'rgba(79,129,189,.15)',
+        pointRadius: 3,
+        pointHoverRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: ctx => ` ${ctx.parsed.y.toLocaleString('es-AR')} hs` }
+        }
+      },
+      scales: {
+        x: { ticks: { font: { size: 10 }, maxRotation: 45 } },
+        y: { ticks: { font: { size: 11 } }, beginAtZero: true }
+      }
+    }
+  });
+}
+
 function barCell(val, max) {
   const pct = max > 0 ? Math.round(val / max * 100) : 0;
   return `<div class="bar-wrap">

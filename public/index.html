@@ -111,6 +111,7 @@
       <button class="tab" onclick="switchTab('tab-proyectos')">📁 Por Proyecto</button>
       <button class="tab" onclick="switchTab('tab-cc')">🏷 Centro de Costo</button>
       <button class="tab" onclick="switchTab('tab-distribucion')">📊 Distribución %</button>
+      <button class="tab" onclick="switchTab('tab-graficos'); renderGraficos()">📈 Gráficos</button>
       <button class="tab" onclick="switchTab('tab-detalle')">📋 Detalle Completo</button>
       <button class="tab" onclick="switchTab('tab-mapping'); cargarMapping()">⚙ Mapping</button>
     </div>
@@ -220,6 +221,102 @@
         </div>
         <div class="dist-chart-wrap">
           <canvas id="chart-cc"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tab: Gráficos ──────────────────────────────────────── -->
+    <div id="tab-graficos" class="tab-content card hidden">
+      <div class="graficos-filtros">
+        <div class="filtro-group">
+          <label>Función</label>
+          <select id="fil-funcion" onchange="renderGraficos()">
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <div class="filtro-group">
+          <label>Centro de Costo</label>
+          <select id="fil-cc" onchange="renderGraficos()">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="filtro-group">
+          <label>Prod / Improductivo</label>
+          <select id="fil-prod" onchange="renderGraficos()">
+            <option value="">Todos</option>
+            <option value="Productivo">Productivo</option>
+            <option value="Improductivo">Improductivo</option>
+          </select>
+        </div>
+        <button class="btn btn-sm btn-outline" onclick="limpiarFiltrosGraficos()">✕ Limpiar filtros</button>
+      </div>
+
+      <div class="graficos-grid">
+        <!-- Horas por persona -->
+        <div class="grafico-card">
+          <h4>Horas por Persona</h4>
+          <canvas id="chart-personas"></canvas>
+        </div>
+        <!-- Horas por función -->
+        <div class="grafico-card">
+          <h4>Horas por Función</h4>
+          <canvas id="chart-funciones"></canvas>
+        </div>
+        <!-- Horas por CC -->
+        <div class="grafico-card">
+          <h4>Horas por Centro de Costo</h4>
+          <canvas id="chart-cc-bar"></canvas>
+        </div>
+        <!-- Evolución temporal -->
+        <div class="grafico-card grafico-card--wide">
+          <h4>Evolución de Horas por Día</h4>
+          <canvas id="chart-timeline"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tab: Gráficos ─────────────────────────────────────── -->
+    <div id="tab-graficos" class="tab-content card hidden">
+      <div class="graficos-filtros">
+        <div class="filtro-group">
+          <label>Función</label>
+          <select id="fil-funcion" onchange="renderGraficos()">
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <div class="filtro-group">
+          <label>Centro de Costo</label>
+          <select id="fil-cc" onchange="renderGraficos()">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="filtro-group">
+          <label>Prod / Improductivo</label>
+          <select id="fil-prod" onchange="renderGraficos()">
+            <option value="">Todos</option>
+            <option value="Productivo">Productivo</option>
+            <option value="Improductivo">Improductivo</option>
+          </select>
+        </div>
+        <button class="btn btn-sm btn-outline" onclick="limpiarFiltrosGraficos()">✕ Limpiar filtros</button>
+      </div>
+
+      <div class="graficos-grid">
+        <div class="grafico-card">
+          <h4>Horas por Persona</h4>
+          <canvas id="chart-personas"></canvas>
+        </div>
+        <div class="grafico-card">
+          <h4>Horas por Función</h4>
+          <canvas id="chart-funciones"></canvas>
+        </div>
+        <div class="grafico-card">
+          <h4>Horas por Centro de Costo</h4>
+          <canvas id="chart-cc-bar"></canvas>
+        </div>
+        <div class="grafico-card grafico-card--wide">
+          <h4>Evolución de Horas por Día</h4>
+          <canvas id="chart-timeline"></canvas>
         </div>
       </div>
     </div>

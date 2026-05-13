@@ -303,6 +303,69 @@ tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
   position: relative;
 }
 
+/* ─── Gráficos interactivos ──────────────────────────────── */
+.graficos-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  padding: 0 0 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+.filtro-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+.filtro-group label {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.filtro-group select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: .9rem;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.filtro-group select:focus { outline: none; border-color: var(--primary); }
+.graficos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 24px;
+}
+.grafico-card {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.grafico-card--wide {
+  grid-column: 1 / -1;
+}
+.grafico-card h4 {
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+.grafico-card canvas {
+  max-height: 280px;
+}
+.grafico-card--wide canvas {
+  max-height: 220px;
+}
+
 /* ─── Modal ──────────────────────────────────────────────── */
 .modal-backdrop {
   position: fixed; inset: 0;
