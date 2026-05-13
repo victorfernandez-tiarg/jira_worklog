@@ -92,6 +92,14 @@ async function uploadMapping(input) {
 
 // ─── Rangos de fechas ───────────────────────────────────
 function setDefaultDates() {
+  const params = new URLSearchParams(window.location.search);
+  const urlFrom = params.get('from');
+  const urlTo   = params.get('to');
+  if (urlFrom && /^\d{4}-\d{2}-\d{2}$/.test(urlFrom) && urlTo && /^\d{4}-\d{2}-\d{2}$/.test(urlTo)) {
+    document.getElementById('date-from').value = urlFrom;
+    document.getElementById('date-to').value   = urlTo;
+    return;
+  }
   const today = new Date();
   const from  = new Date(today.getFullYear(), today.getMonth(), 1);
   document.getElementById('date-from').value = fmt(from);
@@ -137,6 +145,12 @@ async function generarReporte() {
 
   if (!from || !to) { showError('Seleccioná fecha de inicio y fin.'); return; }
   if (from > to)    { showError('La fecha de inicio debe ser anterior a la de fin.'); return; }
+
+  // Actualizar URL para que sea compartible/bookmarkeable
+  const url = new URL(window.location.href);
+  url.searchParams.set('from', from);
+  url.searchParams.set('to', to);
+  history.replaceState({}, '', url.toString());
 
   hideError();
   hideWarning();
@@ -691,11 +705,30 @@ function fillTable(id, rows, mapper) {
 }
 
 // ─── Tabs ───────────────────────────────────────────────
+let _graficosFilterState = { funcion: '', cc: '', prod: '' };
+
 function switchTab(tabId) {
+  // Guardar estado de filtros de gráficos antes de salir
+  _graficosFilterState = {
+    funcion: document.getElementById('fil-funcion')?.value || '',
+    cc:      document.getElementById('fil-cc')?.value      || '',
+    prod:    document.getElementById('fil-prod')?.value    || ''
+  };
+
   document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
   document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
   document.getElementById(tabId).classList.remove('hidden');
   event.target.classList.add('active');
+
+  // Restaurar filtros de gráficos al volver a esa tab
+  if (tabId === 'tab-graficos') {
+    const selFun = document.getElementById('fil-funcion');
+    const selCC  = document.getElementById('fil-cc');
+    const selProd = document.getElementById('fil-prod');
+    if (selFun && _graficosFilterState.funcion) selFun.value = _graficosFilterState.funcion;
+    if (selCC  && _graficosFilterState.cc)      selCC.value  = _graficosFilterState.cc;
+    if (selProd && _graficosFilterState.prod)   selProd.value = _graficosFilterState.prod;
+  }
 }
 
 // ─── Filtro de tabla ────────────────────────────────────
@@ -828,8 +861,10 @@ function abrirModalPersona(email, nombre) {
   const p = personasCache[email] || {};
   document.getElementById('pm-email').value    = email;
   document.getElementById('modal-titulo').textContent = `Editar: ${nombre}`;
-  document.getElementById('pm-funcion').value  = p.funcion      || '';
-  document.getElementById('pm-nomina').value   = p.nombreNomina || '';
+  document.getElementById('pm-cc').value       = p.centroCosto      || '';
+  document.getElementById('pm-funcion').value  = p.funcion          || '';
+  document.getElementById('pm-prod').value     = p.prodImproductivo || '';
+  document.getElementById('pm-nomina').value   = p.nombreNomina     || '';
   document.getElementById('persona-modal-backdrop').classList.remove('hidden');
   document.getElementById('persona-modal').classList.remove('hidden');
   document.getElementById('pm-funcion').focus();
@@ -847,8 +882,10 @@ async function guardarPersona() {
   const email = document.getElementById('pm-email').value;
   const body  = {
     email,
-    funcion:      document.getElementById('pm-funcion').value.trim(),
-    nombreNomina: document.getElementById('pm-nomina').value.trim()
+    centroCosto:       document.getElementById('pm-cc').value.trim(),
+    funcion:           document.getElementById('pm-funcion').value.trim(),
+    prodImproductivo:  document.getElementById('pm-prod').value,
+    nombreNomina:      document.getElementById('pm-nomina').value.trim()
   };
 
   try {
@@ -862,6 +899,8 @@ async function guardarPersona() {
     // Actualizar cache y refrescar fila en la tabla sin recargar todo
     personasCache[email] = body;
     actualizarFilaPersona(email, body);
+    cachedRange = null; // invalidar caché cliente: función/cc cambió
+    cachedDetalle = [];
     cerrarModalPersona();
   } catch (err) {
     alert('Error al guardar: ' + err.message);
@@ -1010,6 +1049,115 @@ async function eliminarEntradaMapping(clave) {
   } catch (err) {
     alert('Error al eliminar: ' + err.message);
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ADMIN: Funciones por Persona (person_functions.json)
+// ═══════════════════════════════════════════════════════════
+
+const FUNCIONES_VALIDAS = ['DEV','QA','PM','UX','INFRA','VARIOS','STAFFING','DIR','CORP'];
+let _fnData = {};  // nombre → función
+
+async function abrirAdminFunciones() {
+  try {
+    const res = await fetch('/api/person-functions');
+    _fnData = res.ok ? await res.json() : {};
+  } catch { _fnData = {}; }
+  renderTablaFunciones();
+  document.getElementById('funciones-modal-backdrop').classList.remove('hidden');
+  document.getElementById('funciones-modal').classList.remove('hidden');
+  document.getElementById('fn-search').value = '';
+}
+
+function cerrarAdminFunciones() {
+  document.getElementById('funciones-modal-backdrop').classList.add('hidden');
+  document.getElementById('funciones-modal').classList.add('hidden');
+}
+
+function renderTablaFunciones(filtro = '') {
+  const tbody = document.querySelector('#tbl-funciones tbody');
+  if (!tbody) return;
+  const entries = Object.entries(_fnData)
+    .filter(([n]) => !filtro || n.toLowerCase().includes(filtro.toLowerCase()))
+    .sort(([a], [b]) => a.localeCompare(b, 'es'));
+
+  if (!entries.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-soft);padding:16px">Sin entradas</td></tr>';
+    return;
+  }
+  tbody.innerHTML = entries.map(([nombre, fn]) => {
+    const opts = FUNCIONES_VALIDAS.map(f =>
+      `<option value="${f}"${f === fn ? ' selected' : ''}>${f}</option>`).join('');
+    return `<tr>
+      <td>${escHtml(nombre)}</td>
+      <td>
+        <select class="fn-select" data-nombre="${escHtml(nombre)}" onchange="guardarFuncion(this)">
+          ${opts}
+        </select>
+      </td>
+      <td>
+        <button class="btn-icon del" title="Eliminar" onclick="eliminarFuncion('${escHtml(nombre)}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function filtrarTablaFunciones(q) {
+  renderTablaFunciones(q);
+}
+
+async function guardarFuncion(select) {
+  const nombre  = select.dataset.nombre;
+  const funcion = select.value;
+  try {
+    const res = await fetch(`/api/person-functions/${encodeURIComponent(nombre)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ funcion })
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    _fnData[nombre] = funcion;
+    setFnStatus(`✓ Guardado: ${nombre} → ${funcion}`);
+    cachedRange = null; cachedDetalle = []; // invalidar caché cliente
+  } catch (err) {
+    setFnStatus(`⚠ Error: ${err.message}`);
+    select.value = _fnData[nombre] || FUNCIONES_VALIDAS[0]; // revertir
+  }
+}
+
+async function eliminarFuncion(nombre) {
+  if (!confirm(`¿Eliminar la función de "${nombre}"?`)) return;
+  try {
+    const res = await fetch(`/api/person-functions/${encodeURIComponent(nombre)}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error((await res.json()).error);
+    delete _fnData[nombre];
+    renderTablaFunciones(document.getElementById('fn-search')?.value || '');
+    setFnStatus(`✓ Eliminado: ${nombre}`);
+    cachedRange = null; cachedDetalle = [];
+  } catch (err) {
+    setFnStatus(`⚠ Error: ${err.message}`);
+  }
+}
+
+function agregarFilaFuncion() {
+  const nombre = prompt('Nombre exacto de la persona en Jira:');
+  if (!nombre?.trim()) return;
+  if (_fnData[nombre.trim()]) { setFnStatus(`Ya existe: ${nombre.trim()}`); return; }
+  // Agregar temporalmente y luego guardar
+  _fnData[nombre.trim()] = 'VARIOS';
+  renderTablaFunciones(document.getElementById('fn-search')?.value || '');
+  // Auto-guardar con valor por defecto
+  fetch(`/api/person-functions/${encodeURIComponent(nombre.trim())}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ funcion: 'VARIOS' })
+  }).then(() => setFnStatus(`✓ Agregado: ${nombre.trim()} → VARIOS`))
+    .catch(err => setFnStatus(`⚠ Error: ${err.message}`));
+}
+
+function setFnStatus(msg) {
+  const el = document.getElementById('fn-status');
+  if (el) { el.textContent = msg; setTimeout(() => { el.textContent = ''; }, 4000); }
 }
 
 // ─── Helper: escapar HTML ───────────────────────────────

@@ -66,6 +66,7 @@
         </label>
         <input type="file" id="mapping-file" accept=".xlsx,.xls,.csv" onchange="uploadMapping(this)" hidden />
         <a href="/api/mapping/download-sample" class="btn btn-sm btn-outline">⬇ Descargar Ejemplo</a>
+        <button class="btn btn-sm btn-outline" onclick="abrirAdminFunciones()">⚙ Funciones</button>
       </div>
     </div>
   </section>
@@ -251,56 +252,6 @@
       </div>
 
       <div class="graficos-grid">
-        <!-- Horas por persona -->
-        <div class="grafico-card">
-          <h4>Horas por Persona</h4>
-          <canvas id="chart-personas"></canvas>
-        </div>
-        <!-- Horas por función -->
-        <div class="grafico-card">
-          <h4>Horas por Función</h4>
-          <canvas id="chart-funciones"></canvas>
-        </div>
-        <!-- Horas por CC -->
-        <div class="grafico-card">
-          <h4>Horas por Centro de Costo</h4>
-          <canvas id="chart-cc-bar"></canvas>
-        </div>
-        <!-- Evolución temporal -->
-        <div class="grafico-card grafico-card--wide">
-          <h4>Evolución de Horas por Día</h4>
-          <canvas id="chart-timeline"></canvas>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── Tab: Gráficos ─────────────────────────────────────── -->
-    <div id="tab-graficos" class="tab-content card hidden">
-      <div class="graficos-filtros">
-        <div class="filtro-group">
-          <label>Función</label>
-          <select id="fil-funcion" onchange="renderGraficos()">
-            <option value="">Todas</option>
-          </select>
-        </div>
-        <div class="filtro-group">
-          <label>Centro de Costo</label>
-          <select id="fil-cc" onchange="renderGraficos()">
-            <option value="">Todos</option>
-          </select>
-        </div>
-        <div class="filtro-group">
-          <label>Prod / Improductivo</label>
-          <select id="fil-prod" onchange="renderGraficos()">
-            <option value="">Todos</option>
-            <option value="Productivo">Productivo</option>
-            <option value="Improductivo">Improductivo</option>
-          </select>
-        </div>
-        <button class="btn btn-sm btn-outline" onclick="limpiarFiltrosGraficos()">✕ Limpiar filtros</button>
-      </div>
-
-      <div class="graficos-grid">
         <div class="grafico-card">
           <h4>Horas por Persona</h4>
           <canvas id="chart-personas"></canvas>
@@ -357,7 +308,7 @@
 
 </main>
 
-<!-- ═══════════════ MODAL: editar persona ══════════════════ -->
+<!-- ═══════════════ MODAL: editar persona (click en fila de tabla Por Persona) ══════════════════ -->
 <div id="persona-modal-backdrop" class="modal-backdrop hidden" onclick="cerrarModalPersona()"></div>
 <div id="persona-modal" class="modal hidden">
   <div class="modal-header">
@@ -397,6 +348,40 @@
 
 <!-- SheetJS para export Excel en browser -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+<!-- ═══════════════ MODAL: admin funciones ══════════════════ -->
+<div id="funciones-modal-backdrop" class="modal-backdrop hidden" onclick="cerrarAdminFunciones()"></div>
+<div id="funciones-modal" class="modal modal--wide hidden">
+  <div class="modal-header">
+    <h3>⚙ Funciones por Persona</h3>
+    <button class="btn-icon" onclick="cerrarAdminFunciones()">✕</button>
+  </div>
+  <div class="modal-body">
+    <p style="font-size:.85rem;color:var(--text-soft);margin-bottom:12px">
+      Asigná la función de cada persona. Se usa para clasificar horas en los gráficos y reportes.
+    </p>
+    <div class="table-actions" style="margin-bottom:12px">
+      <input type="text" id="fn-search" class="search-input" placeholder="🔍 Filtrar persona..." oninput="filtrarTablaFunciones(this.value)" />
+      <button class="btn btn-sm btn-primary" onclick="agregarFilaFuncion()">+ Agregar</button>
+    </div>
+    <div class="table-wrap" style="max-height:420px;overflow-y:auto">
+      <table id="tbl-funciones">
+        <thead>
+          <tr>
+            <th>Nombre (Jira)</th>
+            <th>Función</th>
+            <th style="width:60px"></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <span id="fn-status" style="font-size:.8rem;color:var(--text-soft);flex:1"></span>
+    <button class="btn btn-outline" onclick="cerrarAdminFunciones()">Cerrar</button>
+  </div>
+</div>
 <!-- Chart.js + datalabels plugin -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>

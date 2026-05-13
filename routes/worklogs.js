@@ -10,26 +10,45 @@ const reportCache = require('./reportCache');
 const LAST_REPORT = path.join(__dirname, '../data/last_report.json');
 const DATA_DIR    = path.join(__dirname, '../data');
 
-// ─── Carga prefix_mapping.json ────────────────────────────────────────────
+// ─── Módulo-level caché para datos estáticos ─────────────────────────────────
+let _prefixMap       = null;
+let _personFunctions = null;
+
 function getPrefixMap() {
+  if (_prefixMap) return _prefixMap;
   try {
     const p = path.join(DATA_DIR, 'prefix_mapping.json');
-    if (!fs.existsSync(p)) return {};
+    if (!fs.existsSync(p)) { _prefixMap = {}; return _prefixMap; }
     const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
-    const out = {};
-    for (const [k, v] of Object.entries(raw)) out[k.toUpperCase()] = v;
-    return out;
-  } catch { return {}; }
+    _prefixMap = {};
+    for (const [k, v] of Object.entries(raw)) _prefixMap[k.toUpperCase()] = v;
+  } catch { _prefixMap = {}; }
+  return _prefixMap;
 }
 
-// ─── Carga person_functions.json ────────────────────────────────────────────
 function getPersonFunctions() {
+  if (_personFunctions) return _personFunctions;
   try {
     const p = path.join(DATA_DIR, 'person_functions.json');
-    if (!fs.existsSync(p)) return {};
-    return JSON.parse(fs.readFileSync(p, 'utf-8'));
-  } catch { return {}; }
+    if (!fs.existsSync(p)) { _personFunctions = {}; return _personFunctions; }
+    _personFunctions = JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch { _personFunctions = {}; }
+  return _personFunctions;
 }
+
+// Llamar desde el router de person-functions al guardar cambios
+function reloadPersonFunctions() { _personFunctions = null; }
+
+// ─── Pre-calentar caché desde el último reporte guardado ────────────────────
+try {
+  if (fs.existsSync(LAST_REPORT)) {
+    const saved = JSON.parse(fs.readFileSync(LAST_REPORT, 'utf-8'));
+    if (saved?.meta?.from && saved?.meta?.to) {
+      reportCache.set(saved.meta.from, saved.meta.to, saved);
+      console.log(`  Cache pre-cargada: ${saved.meta.from} → ${saved.meta.to}`);
+    }
+  }
+} catch { /* sin reporte previo */ }
 
 // ─── Helper: construir sub-conjunto desde caché ───────────────────────────
 function buildSubset(entry, from, to) {
@@ -58,6 +77,14 @@ router.post('/extract', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Parámetros requeridos: from, to (YYYY-MM-DD)' });
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to))
     return res.status(400).json({ error: 'Formato de fecha inválido. Usá YYYY-MM-DD' });
+
+  if (from > to)
+    return res.status(400).json({ error: 'La fecha de inicio debe ser anterior o igual a la de fin' });
+
+  const MAX_DAYS = 365;
+  const diffDays = Math.round((new Date(to) - new Date(from)) / 86_400_000);
+  if (diffDays > MAX_DAYS)
+    return res.status(400).json({ error: `El rango máximo es ${MAX_DAYS} días. Solicitaste ${diffDays} días.` });
 
   // Caché hit
   const hit = reportCache.find(from, to);
@@ -366,3 +393,4 @@ function calcularResumenCC(rows) {
 }
 
 module.exports = router;
+module.exports.reloadPersonFunctions = reloadPersonFunctions;
