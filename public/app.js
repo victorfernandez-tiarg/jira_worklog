@@ -299,11 +299,8 @@ async function renderReport(data) {
       tbodyPersonas.innerHTML = data.resumenPersona.map(r => {
         const p  = personasCache[r.autorEmail || r.email] || {};
         const fn = p.funcion || r.funcion || '–';
-        const em = escHtml(r.autorEmail || r.email || '');
-        const au = escHtml(r.autor || '');
-        return `<tr data-email="${em}" style="cursor:pointer"
-                    onclick="verDetalleCCPersona('${em}','${au}')">
-          <td>${escHtml(r.autor)} <button class="btn-icon" title="Editar datos" onclick="event.stopPropagation();abrirModalPersona('${em}','${au}')">✏</button></td>
+        return `<tr class="persona-row" data-email="${escHtml(r.autorEmail || r.email || '')}" data-nombre="${escHtml(r.autor || '')}" onclick="togglePersonaDetalle(this)">
+          <td>${escHtml(r.autor)}</td>
           <td>${escHtml(fn)}</td>
           <td class="num">${r.totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
         </tr>`;
@@ -737,6 +734,7 @@ function filterTable(tableId, query) {
   const q = query.toLowerCase();
   const rows = document.querySelectorAll(`#${tableId} tbody tr`);
   rows.forEach(tr => {
+    if (tr.classList.contains('persona-detail-row')) return;
     tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
   });
 }
@@ -745,6 +743,9 @@ function filterTable(tableId, query) {
 function sortTable(tableId, colIndex) {
   const table = document.getElementById(tableId);
   const tbody = table.querySelector('tbody');
+  // Colapsar detalle expandido antes de reordenar
+  tbody.querySelectorAll('tr.persona-detail-row').forEach(r => r.remove());
+  tbody.querySelectorAll('tr.persona-row.expanded').forEach(r => r.classList.remove('expanded'));
   const rows  = Array.from(tbody.querySelectorAll('tr'));
 
   const state = sortState[tableId] || { col: -1, asc: true };
@@ -878,16 +879,28 @@ function cerrarModalPersona() {
 
 // Cerrar con Escape
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    cerrarModalPersona();
-    cerrarPCCModal();
-  }
+  if (e.key === 'Escape') cerrarModalPersona();
 });
 
-// ─── Detalle CC por persona ──────────────────────────────
-function verDetalleCCPersona(email, nombre) {
+// ─── Detalle CC por persona (collapse inline) ────────────
+function togglePersonaDetalle(tr) {
+  const isExpanded = tr.classList.contains('expanded');
+
+  // Colapsar cualquier fila expandida previa
+  document.querySelectorAll('#tbl-personas tbody tr.persona-row.expanded').forEach(row => {
+    row.classList.remove('expanded');
+    const next = row.nextElementSibling;
+    if (next?.classList.contains('persona-detail-row')) next.remove();
+  });
+
+  if (isExpanded) return; // segundo clic cierra
+
+  const email  = tr.dataset.email;
+  const nombre = tr.dataset.nombre;
+
+  // Filtrar detalle por persona
   const rows = (reportData?.detalle || []).filter(r =>
-    (r.autorEmail || '').toLowerCase() === email.toLowerCase()
+    (r.autorEmail || '').toLowerCase() === (email || '').toLowerCase()
   );
 
   const map = {};
@@ -903,24 +916,26 @@ function verDetalleCCPersona(email, nombre) {
 
   const totalHoras = Math.round(ccRows.reduce((s, r) => s + r.totalHoras, 0) * 100) / 100;
 
-  document.getElementById('pcc-titulo').textContent = nombre;
-  const tbody = document.querySelector('#tbl-pcc-detalle tbody');
-  if (!ccRows.length) {
-    tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:var(--text-soft);padding:16px">Sin datos para el período</td></tr>';
-  } else {
-    tbody.innerHTML = ccRows.map(r =>
-      `<tr><td>${escHtml(r.centroCosto)}</td><td class="num">${r.totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td></tr>`
-    ).join('') +
-    `<tr class="tbl-total"><td><strong>Total</strong></td><td class="num"><strong>${totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</strong></td></tr>`;
-  }
+  const tbodyHtml = ccRows.length
+    ? ccRows.map(r =>
+        `<tr><td>${escHtml(r.centroCosto)}</td><td class="num">${r.totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td></tr>`
+      ).join('') +
+      `<tr class="tbl-total"><td><strong>Total</strong></td><td class="num"><strong>${totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</strong></td></tr>`
+    : '<tr><td colspan="2" style="text-align:center;color:var(--text-soft);padding:8px">Sin datos para el período</td></tr>';
 
-  document.getElementById('pcc-modal-backdrop').classList.remove('hidden');
-  document.getElementById('pcc-modal').classList.remove('hidden');
-}
+  const detailRow = document.createElement('tr');
+  detailRow.className = 'persona-detail-row';
+  detailRow.innerHTML =
+    `<td colspan="3"><div class="persona-detail-panel">
+      <span class="persona-detail-label">Centro de Costo</span>
+      <table class="tbl-cc-inline">
+        <thead><tr><th>Centro de Costo</th><th class="num">Horas</th></tr></thead>
+        <tbody>${tbodyHtml}</tbody>
+      </table>
+    </div></td>`;
 
-function cerrarPCCModal() {
-  document.getElementById('pcc-modal-backdrop').classList.add('hidden');
-  document.getElementById('pcc-modal').classList.add('hidden');
+  tr.after(detailRow);
+  tr.classList.add('expanded');
 }
 
 async function guardarPersona() {

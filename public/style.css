@@ -471,4 +471,56 @@ tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* Fila de total en tablas de resumen */
 .tbl-total td { border-top: 2px solid var(--border); background: var(--bg-card); }
+
+/* ── Collapse inline por persona ───────────────────────── */
+.persona-row { cursor: pointer; }
+.persona-row td:first-child::before {
+  content: '▶';
+  font-size: .6rem;
+  color: var(--text-soft);
+  margin-right: 6px;
+  display: inline-block;
+  transition: transform .15s;
+}
+.persona-row.expanded td:first-child::before {
+  content: '▾';
+  font-size: .75rem;
+  color: var(--primary);
+  transform: none;
+}
+.persona-row.expanded { background: var(--bg) !important; }
+
+.persona-detail-row td {
+  padding: 0 !important;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
+}
+.persona-detail-panel {
+  padding: 10px 16px 14px 28px;
+}
+.persona-detail-label {
+  display: block;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-soft);
+  margin-bottom: 6px;
+}
+.tbl-cc-inline {
+  width: 100%;
+  max-width: 420px;
+  font-size: .85rem;
+  border-collapse: collapse;
+}
+.tbl-cc-inline th,
+.tbl-cc-inline td {
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.tbl-cc-inline thead th {
+  font-size: .78rem;
+  color: var(--text-soft);
+  font-weight: 600;
+}
 .chip-none   { background: var(--bg); color: var(--text-soft); }

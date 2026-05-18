@@ -120,7 +120,7 @@
     <div id="tab-personas" class="tab-content card active">
       <div class="table-header">
         <h3>Resumen por Persona</h3>
-        <p class="table-hint">Hacé clic en una persona para ver el detalle por Centro de Costo. Usá el ✏ para editar sus datos.</p>
+        <p class="table-hint">Hacé clic en una persona para ver el desglose por Centro de Costo.</p>
         <div class="table-actions">
           <input type="text" class="search-input" placeholder="🔍 Filtrar..." oninput="filterTable('tbl-personas', this.value)" />
           <button class="btn btn-sm btn-outline" onclick="exportarExcel('resumenPersona')">⬇ Excel</button>
@@ -308,31 +308,6 @@
 </main>
 
 <!-- ═══════════════ MODAL: detalle CC por persona ══════════════════ -->
-<div id="pcc-modal-backdrop" class="modal-backdrop hidden" onclick="cerrarPCCModal()"></div>
-<div id="pcc-modal" class="modal hidden">
-  <div class="modal-header">
-    <h3 id="pcc-titulo"></h3>
-    <button class="btn-icon" onclick="cerrarPCCModal()">✕</button>
-  </div>
-  <div class="modal-body">
-    <p style="font-size:.85rem;color:var(--text-soft);margin-bottom:12px">Horas por Centro de Costo en el período seleccionado</p>
-    <div class="table-wrap">
-      <table id="tbl-pcc-detalle">
-        <thead>
-          <tr>
-            <th>Centro de Costo</th>
-            <th class="num">Horas</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </div>
-  <div class="modal-footer">
-    <button class="btn btn-outline" onclick="cerrarPCCModal()">Cerrar</button>
-  </div>
-</div>
-
 <!-- ═══════════════ MODAL: editar persona (click en fila de tabla Por Persona) ══════════════════ -->
 <div id="persona-modal-backdrop" class="modal-backdrop hidden" onclick="cerrarModalPersona()"></div>
 <div id="persona-modal" class="modal hidden">
