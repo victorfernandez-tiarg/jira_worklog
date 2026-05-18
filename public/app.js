@@ -903,7 +903,6 @@ function togglePersonaDetalle(tr, persona) {
 
   if (isExpanded) return; // segundo clic cierra
 
-  // Identificadores de la persona (el servidor puede usar email o autor como clave)
   const email  = (persona.autorEmail || persona.email || '').toLowerCase();
   const autor  = (persona.autor || '').toLowerCase();
   const nombre =  persona.autor || '';
@@ -916,38 +915,98 @@ function togglePersonaDetalle(tr, persona) {
     return rAutor === autor;
   });
 
-  const map = {};
+  const fmt = h => (Math.round(h * 100) / 100).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const DASH = `<span style="color:var(--text-soft)">–</span>`;
+
+  // ── Tab 1: agrupación por CC ──────────────────────────
+  const ccMap = {};
   rows.forEach(r => {
     const cc = r.centroCosto || '(Sin CC)';
-    if (!map[cc]) map[cc] = { centroCosto: cc, totalHoras: 0 };
-    map[cc].totalHoras += r.horasLogueadas;
+    ccMap[cc] = (ccMap[cc] || 0) + r.horasLogueadas;
   });
+  const ccRows = Object.entries(ccMap)
+    .map(([cc, h]) => ({ cc, h: Math.round(h * 100) / 100 }))
+    .sort((a, b) => b.h - a.h);
+  const totalHoras = Math.round(ccRows.reduce((s, r) => s + r.h, 0) * 100) / 100;
 
-  const ccRows = Object.values(map)
-    .map(r => ({ ...r, totalHoras: Math.round(r.totalHoras * 100) / 100 }))
-    .sort((a, b) => b.totalHoras - a.totalHoras);
+  const ccTableHtml = ccRows.length
+    ? `<table class="tbl-cc-inline">
+        <thead><tr><th>Centro de Costo</th><th class="num">Horas</th></tr></thead>
+        <tbody>
+          ${ccRows.map(r => `<tr><td>${escHtml(r.cc)}</td><td class="num">${fmt(r.h)}</td></tr>`).join('')}
+          <tr class="tbl-total"><td><strong>Total</strong></td><td class="num"><strong>${fmt(totalHoras)}</strong></td></tr>
+        </tbody>
+      </table>`
+    : '<p style="color:var(--text-soft);font-size:.85rem">Sin datos para el período</p>';
 
-  const totalHoras = Math.round(ccRows.reduce((s, r) => s + r.totalHoras, 0) * 100) / 100;
+  // ── Tab 2: matriz Mes × CC ────────────────────────────
+  const monthCCMap = {};
+  rows.forEach(r => {
+    const m  = r.fecha.substring(0, 7);
+    const cc = r.centroCosto || '(Sin CC)';
+    if (!monthCCMap[m]) monthCCMap[m] = {};
+    monthCCMap[m][cc] = (monthCCMap[m][cc] || 0) + r.horasLogueadas;
+  });
+  const months = Object.keys(monthCCMap).sort();
+  const allCCs = [...new Set(rows.map(r => r.centroCosto || '(Sin CC)'))];
+  const ccTotals = {};
+  allCCs.forEach(cc => { ccTotals[cc] = months.reduce((s, m) => s + (monthCCMap[m]?.[cc] || 0), 0); });
+  allCCs.sort((a, b) => ccTotals[b] - ccTotals[a]);
 
-  const tbodyHtml = ccRows.length
-    ? ccRows.map(r =>
-        `<tr><td>${escHtml(r.centroCosto)}</td><td class="num">${r.totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td></tr>`
-      ).join('') +
-      `<tr class="tbl-total"><td><strong>Total</strong></td><td class="num"><strong>${totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</strong></td></tr>`
-    : '<tr><td colspan="2" style="text-align:center;color:var(--text-soft);padding:8px">Sin datos para el período</td></tr>';
+  let mensualTableHtml;
+  if (!months.length) {
+    mensualTableHtml = '<p style="color:var(--text-soft);font-size:.85rem">Sin datos para el período</p>';
+  } else {
+    const multiCC = allCCs.length > 1;
+    const thCols  = multiCC ? allCCs.map(cc => `<th class="num" title="${escHtml(cc)}">${escHtml(cc)}</th>`).join('') : '';
+    const bodyRows = months.map(m => {
+      const rowTotal = allCCs.reduce((s, cc) => s + (monthCCMap[m]?.[cc] || 0), 0);
+      const cells = multiCC
+        ? allCCs.map(cc => { const h = monthCCMap[m]?.[cc] || 0; return `<td class="num">${h > 0 ? fmt(h) : DASH}</td>`; }).join('')
+        : '';
+      return `<tr><td>${formatMonth(m)}</td>${cells}<td class="num"><strong>${fmt(rowTotal)}</strong></td></tr>`;
+    }).join('');
+    const footCells = multiCC
+      ? allCCs.map(cc => `<td class="num">${fmt(ccTotals[cc])}</td>`).join('')
+      : '';
+    mensualTableHtml =
+      `<div class="tbl-scroll-x"><table class="tbl-cc-inline">
+        <thead><tr><th>Mes</th>${thCols}<th class="num">${multiCC ? 'Total' : 'Horas'}</th></tr></thead>
+        <tbody>
+          ${bodyRows}
+          <tr class="tbl-total"><td><strong>Total</strong></td>${footCells}<td class="num"><strong>${fmt(totalHoras)}</strong></td></tr>
+        </tbody>
+      </table></div>`;
+  }
 
+  // ── Render ────────────────────────────────────────────
   const detailRow = document.createElement('tr');
   detailRow.className = 'persona-detail-row';
   detailRow.innerHTML =
     `<td colspan="3"><div class="persona-detail-panel">
-      <span class="persona-detail-label">Centro de Costo — ${escHtml(nombre)}</span>
-      <table class="tbl-cc-inline">
-        <thead><tr><th>Centro de Costo</th><th class="num">Horas</th></tr></thead>
-        <tbody>${tbodyHtml}</tbody>
-      </table>
+      <div class="detail-tabs">
+        <button class="detail-tab active" data-tab="cc"     onclick="switchDetailTab(this,'cc')">Por CC</button>
+        <button class="detail-tab"        data-tab="mensual" onclick="switchDetailTab(this,'mensual')">Evolución mensual</button>
+      </div>
+      <div class="detail-tab-content" data-content="cc">${ccTableHtml}</div>
+      <div class="detail-tab-content hidden" data-content="mensual">${mensualTableHtml}</div>
     </div></td>`;
 
   tr.after(detailRow);
+  tr.classList.add('expanded');
+}
+
+function switchDetailTab(btn, tabName) {
+  const panel = btn.closest('.persona-detail-panel');
+  panel.querySelectorAll('.detail-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+  panel.querySelectorAll('.detail-tab-content').forEach(c => c.classList.toggle('hidden', c.dataset.content !== tabName));
+}
+
+function formatMonth(yyyymm) {
+  const [y, m] = yyyymm.split('-');
+  const names = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  return `${names[parseInt(m, 10) - 1]} ${y}`;
+}
   tr.classList.add('expanded');
 }
 

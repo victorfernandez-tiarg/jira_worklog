@@ -507,6 +507,30 @@ tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
   color: var(--text-soft);
   margin-bottom: 6px;
 }
+
+/* Mini-tabs dentro del collapse */
+.detail-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 10px;
+}
+.detail-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  padding: 4px 14px;
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.detail-tab:hover { color: var(--text); }
+.detail-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+.tbl-scroll-x { overflow-x: auto; }
 .tbl-cc-inline {
   width: 100%;
   max-width: 420px;
