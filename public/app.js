@@ -1054,34 +1054,9 @@ function toggleProyectoDetalle(tr, proy) {
   );
 
   const totalHoras = Math.round(rows.reduce((s, r) => s + r.horasLogueadas, 0) * 100) / 100;
-  const fmt  = h  => (Math.round(h * 100) / 100).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
-  const pct  = h  => totalHoras > 0 ? (h / totalHoras * 100).toFixed(1) + '%' : '–';
-  const DASH = `<span style="color:var(--text-soft)">–</span>`;
+  const fmt = h => (Math.round(h * 100) / 100).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
 
-  // ── Tab Personas ──────────────────────────────────────
-  const personaMap = {};
-  rows.forEach(r => {
-    const key = r.autorEmail || r.autor;
-    if (!personaMap[key]) personaMap[key] = { nombre: r.autor, h: 0 };
-    personaMap[key].h += r.horasLogueadas;
-  });
-  const personaRows = Object.values(personaMap)
-    .map(p => ({ ...p, h: Math.round(p.h * 100) / 100 }))
-    .sort((a, b) => b.h - a.h);
-
-  const personaTableHtml = personaRows.length
-    ? `<table class="tbl-cc-inline">
-        <thead><tr><th>Persona</th><th class="num">Horas</th><th class="num">%</th></tr></thead>
-        <tbody>
-          ${personaRows.map(p =>
-            `<tr><td>${escHtml(p.nombre)}</td><td class="num">${fmt(p.h)}</td><td class="num">${pct(p.h)}</td></tr>`
-          ).join('')}
-          <tr class="tbl-total"><td><strong>Total</strong></td><td class="num"><strong>${fmt(totalHoras)}</strong></td><td class="num"><strong>100%</strong></td></tr>
-        </tbody>
-      </table>`
-    : '<p style="color:var(--text-soft);font-size:.85rem">Sin datos para el período</p>';
-
-  // ── Tab Evolución mensual ─────────────────────────────
+  // ── Evolución mensual ─────────────────────────────────
   const monthMap = {};
   rows.forEach(r => {
     const mon = r.fecha.substring(0, 7);
@@ -1093,23 +1068,63 @@ function toggleProyectoDetalle(tr, proy) {
 
   const chartId = 'proy-chart-' + (++_proyChartSeq);
 
-  const mensualContent = months.length ? `
-    <div style="max-width:580px;margin-bottom:14px;padding-top:4px">
-      <canvas id="${chartId}" height="130"></canvas>
-    </div>
-    <table class="tbl-cc-inline">
-      <thead><tr><th>Mes</th><th class="num">Horas</th><th class="num">%</th></tr></thead>
+  // ── Helper: construye tabla de personas para un subconjunto ──
+  function makePersonaTable(subRows) {
+    const pMap = {};
+    subRows.forEach(r => {
+      const key = r.autorEmail || r.autor;
+      if (!pMap[key]) pMap[key] = { nombre: r.autor, h: 0 };
+      pMap[key].h += r.horasLogueadas;
+    });
+    const pRows = Object.values(pMap)
+      .map(p => ({ ...p, h: Math.round(p.h * 100) / 100 }))
+      .sort((a, b) => b.h - a.h);
+    const tot = Math.round(pRows.reduce((s, p) => s + p.h, 0) * 100) / 100;
+    if (!pRows.length) return '<p style="color:var(--text-soft);font-size:.85rem">Sin datos para el período</p>';
+    return `<table class="tbl-cc-inline">
+      <thead><tr><th>Persona</th><th class="num">Horas</th><th class="num">%</th></tr></thead>
       <tbody>
-        ${months.map((m, i) =>
-          `<tr class="tbl-monthly-row" data-month="${m}">
-            <td>${formatMonth(m)}</td>
-            <td class="num">${fmt(monthHours[i])}</td>
-            <td class="num">${pcts[i]}%</td>
-          </tr>`
-        ).join('')}
-        <tr class="tbl-total"><td><strong>Total</strong></td><td class="num"><strong>${fmt(totalHoras)}</strong></td><td class="num"><strong>100%</strong></td></tr>
+        ${pRows.map(p => `<tr>
+          <td>${escHtml(p.nombre)}</td>
+          <td class="num">${fmt(p.h)}</td>
+          <td class="num">${tot > 0 ? (p.h / tot * 100).toFixed(1) + '%' : '–'}</td>
+        </tr>`).join('')}
+        <tr class="tbl-total"><td><strong>Total</strong></td><td class="num"><strong>${fmt(tot)}</strong></td><td class="num"><strong>100%</strong></td></tr>
       </tbody>
-    </table>`
+    </table>`;
+  }
+
+  // ── Tab Personas — selector de mes (sólo si hay > 1 mes) ─
+  const monthOptions = ['<option value="">Todos los meses</option>',
+    ...months.map(m => `<option value="${m}">${formatMonth(m)}</option>`)
+  ].join('');
+
+  const personasTabHtml = months.length > 1
+    ? `<div class="proy-mes-wrap">
+        <span class="persona-detail-label" style="display:inline-block;margin-right:6px">Mes:</span>
+        <select class="proy-mes-select">${monthOptions}</select>
+      </div>
+      <div class="proy-personas-tbl">${makePersonaTable(rows)}</div>`
+    : `<div class="proy-personas-tbl">${makePersonaTable(rows)}</div>`;
+
+  // ── Tab Evolución mensual ─────────────────────────────
+  const mensualContent = months.length
+    ? `<div style="max-width:580px;margin-bottom:14px;padding-top:4px">
+        <canvas id="${chartId}" height="130"></canvas>
+      </div>
+      <table class="tbl-cc-inline">
+        <thead><tr><th>Mes</th><th class="num">Horas</th><th class="num">%</th></tr></thead>
+        <tbody>
+          ${months.map((m, i) =>
+            `<tr class="tbl-monthly-row" style="cursor:pointer" data-month="${m}">
+              <td>${formatMonth(m)}</td>
+              <td class="num">${fmt(monthHours[i])}</td>
+              <td class="num">${pcts[i]}%</td>
+            </tr>`
+          ).join('')}
+          <tr class="tbl-total"><td><strong>Total</strong></td><td class="num"><strong>${fmt(totalHoras)}</strong></td><td class="num"><strong>100%</strong></td></tr>
+        </tbody>
+      </table>`
     : '<p style="color:var(--text-soft);font-size:.85rem">Sin datos para el período</p>';
 
   // ── Render ────────────────────────────────────────────
@@ -1121,15 +1136,45 @@ function toggleProyectoDetalle(tr, proy) {
         <button class="detail-tab active" data-tab="personas" onclick="switchDetailTab(this,'personas')">Personas</button>
         <button class="detail-tab"        data-tab="mensual"  onclick="switchDetailTab(this,'mensual')">Evolución mensual</button>
       </div>
-      <div class="detail-tab-content" data-content="personas">${personaTableHtml}</div>
+      <div class="detail-tab-content" data-content="personas">${personasTabHtml}</div>
       <div class="detail-tab-content hidden" data-content="mensual">${mensualContent}</div>
     </div></td>`;
 
   tr.dataset.chartId = chartId;
   tr.after(detailRow);
   tr.classList.add('expanded');
-  // Asegurar que el detalle quede visible
   requestAnimationFrame(() => detailRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+
+  // ── Post-DOM: references ──────────────────────────────
+  const panel       = detailRow.querySelector('.persona-detail-panel');
+  const personasTbl = detailRow.querySelector('.proy-personas-tbl');
+  const mesSelect   = detailRow.querySelector('.proy-mes-select');
+
+  // Helper local para actualizar el tab Personas y cambiar de tab
+  function filtrarYMostrar(mon) {
+    const subRows = mon ? rows.filter(r => r.fecha.startsWith(mon)) : rows;
+    personasTbl.innerHTML = makePersonaTable(subRows);
+    if (mesSelect) mesSelect.value = mon || '';
+    const tabBtn = panel.querySelector('[data-tab="personas"]');
+    if (tabBtn) switchDetailTab(tabBtn, 'personas');
+  }
+
+  // Selector de mes → re-renderizar tabla de personas
+  if (mesSelect) {
+    mesSelect.addEventListener('change', () => filtrarYMostrar(mesSelect.value));
+  }
+
+  // Click en fila mensual → filtrar personas + ir al tab Personas
+  detailRow.querySelectorAll('.tbl-monthly-row').forEach(row => {
+    row.addEventListener('click', () => {
+      detailRow.querySelectorAll('.tbl-monthly-row').forEach(r =>
+        r.classList.toggle('row-highlight', r === row)
+      );
+      filtrarYMostrar(row.dataset.month);
+    });
+  });
+
+  // ── Chart.js ──────────────────────────────────────────
   if (months.length) {
     requestAnimationFrame(() => {
       const canvas = document.getElementById(chartId);
@@ -1168,17 +1213,14 @@ function toggleProyectoDetalle(tr, proy) {
             y: { display: false },
             x: { grid: { display: false }, ticks: { font: { size: 11 } } }
           },
+          // Clic en barra → filtrar personas al ese mes
           onClick: (_ev, elements) => {
             if (!elements.length) return;
             const mon = months[elements[0].index];
-            // Resaltar fila en la tabla
             detailRow.querySelectorAll('.tbl-monthly-row').forEach(r =>
               r.classList.toggle('row-highlight', r.dataset.month === mon)
             );
-            // Cambiar al tab mensual si no está activo
-            const panel = detailRow.querySelector('.persona-detail-panel');
-            const tabBtn = panel.querySelector('[data-tab="mensual"]');
-            if (tabBtn && !tabBtn.classList.contains('active')) switchDetailTab(tabBtn, 'mensual');
+            filtrarYMostrar(mon);
           }
         }
       });

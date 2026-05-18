@@ -556,6 +556,23 @@ tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
   border-bottom: 2px solid var(--border);
 }
 
+/* Selector de mes dentro del colapso de proyecto */
+.proy-mes-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.proy-mes-select {
+  font-size: .82rem;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
 .tbl-cc-inline {
   width: 100%;
   max-width: 420px;
