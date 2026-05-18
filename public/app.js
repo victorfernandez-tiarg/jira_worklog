@@ -10,6 +10,9 @@ let sortState  = {};   // { tableId: { col, asc } }
 // Caché cliente: evita llamadas al servidor si el rango está cubierto
 let cachedRange   = null;  // { from, to }
 let cachedDetalle = [];    // todos los rows del rango cargado
+// Charts de colapso por proyecto
+const _proyCharts = {};
+let   _proyChartSeq = 0;
 // ─── Init ───────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   setDefaultDates();
