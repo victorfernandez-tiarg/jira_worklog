@@ -145,6 +145,7 @@
     <div id="tab-proyectos" class="tab-content card hidden">
       <div class="table-header">
         <h3>Resumen por Proyecto</h3>
+        <p class="table-hint">Hacé clic en un proyecto para ver personas y evolución mensual.</p>
         <div class="table-actions">
           <input type="text" class="search-input" placeholder="🔍 Filtrar..." oninput="filterTable('tbl-proyectos', this.value)" />
           <button class="btn btn-sm btn-outline" onclick="exportarExcel('resumenProyecto')">⬇ Excel</button>
@@ -156,8 +157,8 @@
             <tr>
               <th onclick="sortTable('tbl-proyectos',0)">Proyecto ↕</th>
               <th onclick="sortTable('tbl-proyectos',1)" class="num">Horas ↕</th>
-              <th onclick="sortTable('tbl-proyectos',2)" class="num">Personas ↕</th>
-              <th onclick="sortTable('tbl-proyectos',3)" class="num">Entradas ↕</th>
+              <th onclick="sortTable('tbl-proyectos',2)" class="num">% Total ↕</th>
+              <th onclick="sortTable('tbl-proyectos',3)" class="num">Personas ↕</th>
             </tr>
           </thead>
           <tbody></tbody>

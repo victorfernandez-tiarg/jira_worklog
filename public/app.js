@@ -327,7 +327,7 @@ async function renderReport(data) {
         const pct = totalHorasProy > 0 ? (r.totalHoras / totalHorasProy * 100).toFixed(1) : '0.0';
         return `<tr class="proyecto-row">
           <td>${escHtml(r.proyecto)}</td>
-          <td class="num">${barCell(r.totalHoras, maxHorasProyecto)}</td>
+          <td class="num">${r.totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
           <td class="num">${pct}%</td>
           <td class="num">${r.personas}</td>
         </tr>`;
@@ -1122,8 +1122,8 @@ function toggleProyectoDetalle(tr, proy) {
   tr.dataset.chartId = chartId;
   tr.after(detailRow);
   tr.classList.add('expanded');
-
-  // Inicializar Chart.js cuando el canvas está en el DOM
+  // Asegurar que el detalle quede visible
+  requestAnimationFrame(() => detailRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
   if (months.length) {
     requestAnimationFrame(() => {
       const canvas = document.getElementById(chartId);
