@@ -392,6 +392,31 @@ tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
 }
 
 
+/* ─── Filtros por columna: Detalle Completo ─────────────── */
+.detalle-filter-row td {
+  padding: 3px 4px !important;
+  background: #f1f5f9;
+  border-bottom: 2px solid var(--border);
+}
+.col-filter {
+  width: 100%;
+  padding: 3px 6px;
+  font-size: .78rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  outline: none;
+  box-sizing: border-box;
+  color: var(--fg);
+}
+.col-filter:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+.col-filter-num {
+  width: 72px;
+}
+
 /* ─── Gráficos interactivos ──────────────────────────────── */
 .graficos-filtros {
   display: flex;

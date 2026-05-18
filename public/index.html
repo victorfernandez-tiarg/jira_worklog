@@ -297,7 +297,7 @@
       <div class="table-header">
         <h3>Detalle Completo de Worklogs</h3>
         <div class="table-actions">
-          <input type="text" class="search-input" placeholder="🔍 Filtrar..." oninput="filterTable('tbl-detalle', this.value)" />
+          <button class="btn btn-sm btn-outline" onclick="limpiarFiltrosDetalle()">✕ Limpiar filtros</button>
           <button class="btn btn-sm btn-outline" onclick="exportarExcel('detalle')">⬇ Excel</button>
           <button class="btn btn-sm btn-outline" onclick="exportarCSV('detalle')">⬇ CSV</button>
         </div>
@@ -315,6 +315,21 @@
               <th onclick="sortTable('tbl-detalle',6)">Centro de Costo ↕</th>
               <th onclick="sortTable('tbl-detalle',7)">Prod/Improd ↕</th>
               <th onclick="sortTable('tbl-detalle',8)" class="num">Horas ↕</th>
+            </tr>
+            <tr class="detalle-filter-row">
+              <td><input class="col-filter" type="text" placeholder="AAAA-MM…" data-col="0" oninput="filtrarDetalle()"/></td>
+              <td><input class="col-filter" type="text" placeholder="Issue…" data-col="1" oninput="filtrarDetalle()"/></td>
+              <td><input class="col-filter" type="text" placeholder="Buscar…" data-col="2" oninput="filtrarDetalle()"/></td>
+              <td><input class="col-filter" type="text" placeholder="Autor…" data-col="3" oninput="filtrarDetalle()"/></td>
+              <td><input class="col-filter" type="text" placeholder="Nómina…" data-col="4" oninput="filtrarDetalle()"/></td>
+              <td><select class="col-filter" id="det-fil-proyecto" data-col="5" onchange="filtrarDetalle()"><option value="">Todos</option></select></td>
+              <td><select class="col-filter" id="det-fil-cc" data-col="6" onchange="filtrarDetalle()"><option value="">Todos</option></select></td>
+              <td><select class="col-filter" id="det-fil-prod" data-col="7" onchange="filtrarDetalle()">
+                <option value="">Todos</option>
+                <option value="Productivo">Productivo</option>
+                <option value="Improductivo">Improductivo</option>
+              </select></td>
+              <td><input class="col-filter col-filter-num" type="number" min="0" step="0.5" placeholder="≥ h" data-col="8" oninput="filtrarDetalle()"/></td>
             </tr>
           </thead>
           <tbody></tbody>

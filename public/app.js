@@ -384,6 +384,7 @@ async function renderReport(data) {
     r.prodImproductivo || '–',
     r.horasLogueadas.toLocaleString('es-AR')
   ]);
+  inicializarFiltrosDetalle(data.detalle);
 
   // Tabla Distribución %
   renderDistribucion(data.resumenCentroCosto);
@@ -1151,6 +1152,102 @@ function switchTab(tabId) {
     if (selCC  && _graficosFilterState.cc)      selCC.value  = _graficosFilterState.cc;
     if (selProd && _graficosFilterState.prod)   selProd.value = _graficosFilterState.prod;
   }
+}
+
+// ─── Filtros por columna: Detalle Completo ─────────────
+function inicializarFiltrosDetalle(rows) {
+  // Reset inputs
+  document.querySelectorAll('#tbl-detalle .col-filter').forEach(el => {
+    if (el.tagName === 'SELECT' && el.id) {
+      while (el.options.length > 1) el.remove(1);
+    } else {
+      el.value = '';
+    }
+  });
+
+  const selProy = document.getElementById('det-fil-proyecto');
+  if (selProy) {
+    [...new Set(rows.map(r => r.proyectoMapeado || r.proyecto).filter(Boolean))].sort()
+      .forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = p; selProy.appendChild(o); });
+  }
+
+  const selCC = document.getElementById('det-fil-cc');
+  if (selCC) {
+    [...new Set(rows.map(r => r.centroCosto || '–').filter(Boolean))].sort()
+      .forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; selCC.appendChild(o); });
+  }
+}
+
+function filtrarDetalle() {
+  const filters = Array.from(document.querySelectorAll('#tbl-detalle .col-filter'))
+    .map(el => ({ col: +el.dataset.col, val: el.value.trim().toLowerCase(), isNum: el.type === 'number' }))
+    .filter(f => f.val !== '');
+
+  document.querySelectorAll('#tbl-detalle tbody tr').forEach(tr => {
+    if (!filters.length) { tr.style.display = ''; return; }
+    const show = filters.every(f => {
+      const cell = tr.cells[f.col];
+      if (!cell) return true;
+      const text = cell.textContent.trim().toLowerCase();
+      if (f.isNum) {
+        const num = parseFloat(text.replace(/\./g, '').replace(',', '.'));
+        return !isNaN(num) && num >= parseFloat(f.val);
+      }
+      return text.includes(f.val);
+    });
+    tr.style.display = show ? '' : 'none';
+  });
+}
+
+function limpiarFiltrosDetalle() {
+  document.querySelectorAll('#tbl-detalle .col-filter').forEach(el => { el.value = ''; });
+  filtrarDetalle();
+}
+
+// ─── Filtros por columna: Detalle Completo ─────────────
+function inicializarFiltrosDetalle(rows) {
+  document.querySelectorAll('#tbl-detalle .col-filter').forEach(el => {
+    if (el.tagName === 'SELECT' && el.id) {
+      while (el.options.length > 1) el.remove(1);
+    } else {
+      el.value = '';
+    }
+  });
+  const selProy = document.getElementById('det-fil-proyecto');
+  if (selProy) {
+    [...new Set(rows.map(r => r.proyectoMapeado || r.proyecto).filter(Boolean))].sort()
+      .forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = p; selProy.appendChild(o); });
+  }
+  const selCC = document.getElementById('det-fil-cc');
+  if (selCC) {
+    [...new Set(rows.map(r => r.centroCosto || '–').filter(Boolean))].sort()
+      .forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; selCC.appendChild(o); });
+  }
+}
+
+function filtrarDetalle() {
+  const filters = Array.from(document.querySelectorAll('#tbl-detalle .col-filter'))
+    .map(el => ({ col: +el.dataset.col, val: el.value.trim().toLowerCase(), isNum: el.type === 'number' }))
+    .filter(f => f.val !== '');
+  document.querySelectorAll('#tbl-detalle tbody tr').forEach(tr => {
+    if (!filters.length) { tr.style.display = ''; return; }
+    const show = filters.every(f => {
+      const cell = tr.cells[f.col];
+      if (!cell) return true;
+      const text = cell.textContent.trim().toLowerCase();
+      if (f.isNum) {
+        const num = parseFloat(text.replace(/\./g, '').replace(',', '.'));
+        return !isNaN(num) && num >= parseFloat(f.val);
+      }
+      return text.includes(f.val);
+    });
+    tr.style.display = show ? '' : 'none';
+  });
+}
+
+function limpiarFiltrosDetalle() {
+  document.querySelectorAll('#tbl-detalle .col-filter').forEach(el => { el.value = ''; });
+  filtrarDetalle();
 }
 
 // ─── Filtro de tabla ────────────────────────────────────
