@@ -299,12 +299,20 @@ async function renderReport(data) {
       tbodyPersonas.innerHTML = data.resumenPersona.map(r => {
         const p  = personasCache[r.autorEmail || r.email] || {};
         const fn = p.funcion || r.funcion || '–';
-        return `<tr class="persona-row" data-email="${escHtml(r.autorEmail || r.email || '')}" data-nombre="${escHtml(r.autor || '')}" onclick="togglePersonaDetalle(this)">
+        return `<tr class="persona-row" data-email="${escHtml(r.autorEmail || r.email || '')}">
           <td>${escHtml(r.autor)}</td>
           <td>${escHtml(fn)}</td>
           <td class="num">${r.totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
         </tr>`;
       }).join('');
+
+      // Adjuntar handlers vía closure — evita pasar email como string en HTML
+      const trEls = tbodyPersonas.querySelectorAll('tr.persona-row');
+      data.resumenPersona.forEach((persona, i) => {
+        if (trEls[i]) {
+          trEls[i].addEventListener('click', () => togglePersonaDetalle(trEls[i], persona));
+        }
+      });
     }
   }
 
@@ -883,7 +891,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ─── Detalle CC por persona (collapse inline) ────────────
-function togglePersonaDetalle(tr) {
+function togglePersonaDetalle(tr, persona) {
   const isExpanded = tr.classList.contains('expanded');
 
   // Colapsar cualquier fila expandida previa
@@ -895,13 +903,18 @@ function togglePersonaDetalle(tr) {
 
   if (isExpanded) return; // segundo clic cierra
 
-  const email  = tr.dataset.email;
-  const nombre = tr.dataset.nombre;
+  // Identificadores de la persona (el servidor puede usar email o autor como clave)
+  const email  = (persona.autorEmail || persona.email || '').toLowerCase();
+  const autor  = (persona.autor || '').toLowerCase();
+  const nombre =  persona.autor || '';
 
-  // Filtrar detalle por persona
-  const rows = (reportData?.detalle || []).filter(r =>
-    (r.autorEmail || '').toLowerCase() === (email || '').toLowerCase()
-  );
+  // Filtrar detalle por persona — match por email (primario) o nombre (fallback)
+  const rows = (reportData?.detalle || []).filter(r => {
+    const rEmail = (r.autorEmail || '').toLowerCase();
+    const rAutor = (r.autor || '').toLowerCase();
+    if (email) return rEmail === email;
+    return rAutor === autor;
+  });
 
   const map = {};
   rows.forEach(r => {
@@ -927,7 +940,7 @@ function togglePersonaDetalle(tr) {
   detailRow.className = 'persona-detail-row';
   detailRow.innerHTML =
     `<td colspan="3"><div class="persona-detail-panel">
-      <span class="persona-detail-label">Centro de Costo</span>
+      <span class="persona-detail-label">Centro de Costo — ${escHtml(nombre)}</span>
       <table class="tbl-cc-inline">
         <thead><tr><th>Centro de Costo</th><th class="num">Horas</th></tr></thead>
         <tbody>${tbodyHtml}</tbody>
