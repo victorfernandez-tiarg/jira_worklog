@@ -1283,24 +1283,47 @@ function toggleCCDetalle(tr, cc) {
     });
   });
 
+  // ── Proyectos dentro de este CC (para stacked chart) ─
+  const monthProjMap = {};
+  rows.forEach(r => {
+    const mon  = r.fecha.substring(0, 7);
+    const proj = r.proyectoMapeado || r.proyecto || '(Sin Proyecto)';
+    if (!monthProjMap[mon]) monthProjMap[mon] = {};
+    monthProjMap[mon][proj] = (monthProjMap[mon][proj] || 0) + r.horasLogueadas;
+  });
+  const allProjects = [...new Set(rows.map(r => r.proyectoMapeado || r.proyecto || '(Sin Proyecto)'))];
+  const projTotals  = {};
+  allProjects.forEach(p => { projTotals[p] = months.reduce((s, m) => s + (monthProjMap[m]?.[p] || 0), 0); });
+  allProjects.sort((a, b) => projTotals[b] - projTotals[a]);
+
   if (months.length) {
     requestAnimationFrame(() => {
       const canvas = document.getElementById(ccChartId);
       if (!canvas || !window.Chart) return;
-      _proyCharts[ccChartId] = new Chart(canvas, {
-        type: 'bar',
-        data: {
-          labels: months.map(formatMonth),
-          datasets: [{
-            data: monthHours,
-            backgroundColor: '#C0504D99',
-            borderColor: '#C0504D',
-            borderWidth: 1,
-            borderRadius: 4
-          }]
-        },
-        plugins: [ChartDataLabels],
-        options: {
+
+      const multiProj = allProjects.length > 1;
+
+      const handleChartClick = (_ev, elements) => {
+        if (!elements.length) return;
+        const mon = months[elements[0].index];
+        detailRow.querySelectorAll('.tbl-monthly-row').forEach(r =>
+          r.classList.toggle('row-highlight', r.dataset.month === mon)
+        );
+        filtrarYMostrar(mon);
+      };
+
+      let datasets, chartOptions;
+
+      if (!multiProj) {
+        // Un solo proyecto → barra simple (igual que antes)
+        datasets = [{
+          data: monthHours,
+          backgroundColor: '#C0504D99',
+          borderColor: '#C0504D',
+          borderWidth: 1,
+          borderRadius: 4
+        }];
+        chartOptions = {
           responsive: true,
           layout: { padding: { top: 18 } },
           plugins: {
@@ -1319,15 +1342,62 @@ function toggleCCDetalle(tr, cc) {
             y: { display: false },
             x: { grid: { display: false }, ticks: { font: { size: 11 } } }
           },
-          onClick: (_ev, elements) => {
-            if (!elements.length) return;
-            const mon = months[elements[0].index];
-            detailRow.querySelectorAll('.tbl-monthly-row').forEach(r =>
-              r.classList.toggle('row-highlight', r.dataset.month === mon)
-            );
-            filtrarYMostrar(mon);
-          }
-        }
+          onClick: handleChartClick
+        };
+      } else {
+        // Múltiples proyectos → barras apiladas, un dataset por proyecto
+        datasets = allProjects.map((proj, i) => ({
+          label: proj,
+          data: months.map(m => Math.round((monthProjMap[m]?.[proj] || 0) * 100) / 100),
+          backgroundColor: PALETTE[i % PALETTE.length] + 'bb',
+          borderColor:     PALETTE[i % PALETTE.length],
+          borderWidth: 1,
+          borderRadius: 0
+        }));
+        chartOptions = {
+          responsive: true,
+          layout: { padding: { top: 20 } },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'bottom',
+              labels: { font: { size: 10 }, boxWidth: 12, padding: 8 }
+            },
+            datalabels: {
+              anchor: 'center',
+              align: 'center',
+              font: { size: 9, weight: '600' },
+              color: '#fff',
+              // Mostrar % dentro del segmento solo si es >= 4% del total general
+              display: (ctx) => {
+                const val = ctx.dataset.data[ctx.dataIndex];
+                return totalHoras > 0 && (val / totalHoras * 100) >= 4;
+              },
+              formatter: (val) => (val / totalHoras * 100).toFixed(1) + '%'
+            },
+            tooltip: {
+              callbacks: {
+                label: ctx => {
+                  const val = ctx.raw;
+                  const pct = totalHoras > 0 ? (val / totalHoras * 100).toFixed(1) : '0.0';
+                  return ` ${ctx.dataset.label}: ${val.toLocaleString('es-AR')} h (${pct}%)`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: { stacked: true, display: false },
+            x: { stacked: true, grid: { display: false }, ticks: { font: { size: 11 } } }
+          },
+          onClick: handleChartClick
+        };
+      }
+
+      _proyCharts[ccChartId] = new Chart(canvas, {
+        type: 'bar',
+        data: { labels: months.map(formatMonth), datasets },
+        plugins: [ChartDataLabels],
+        options: chartOptions
       });
     });
   }
