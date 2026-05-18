@@ -468,4 +468,7 @@ tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
 }
 .chip-prod   { background: #e3fcef; color: var(--success); }
 .chip-improd { background: #ffebe6; color: var(--error); }
+
+/* Fila de total en tablas de resumen */
+.tbl-total td { border-top: 2px solid var(--border); background: var(--bg-card); }
 .chip-none   { background: var(--bg); color: var(--text-soft); }

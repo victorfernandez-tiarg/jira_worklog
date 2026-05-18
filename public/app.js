@@ -150,7 +150,7 @@ async function generarReporte() {
   const url = new URL(window.location.href);
   url.searchParams.set('from', from);
   url.searchParams.set('to', to);
-  history.replaceState({}, '', url.toString());
+  history.replaceState({}, '', url.toString()); 
 
   hideError();
   hideWarning();
@@ -294,17 +294,18 @@ async function renderReport(data) {
   const tbodyPersonas = document.querySelector('#tbl-personas tbody');
   if (tbodyPersonas) {
     if (!data.resumenPersona.length) {
-      tbodyPersonas.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-soft);padding:20px">Sin datos</td></tr>';
+      tbodyPersonas.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-soft);padding:20px">Sin datos</td></tr>';
     } else {
       tbodyPersonas.innerHTML = data.resumenPersona.map(r => {
         const p  = personasCache[r.autorEmail || r.email] || {};
         const fn = p.funcion || r.funcion || '–';
-        return `<tr data-email="${escHtml(r.autorEmail || r.email || '')}"
-                    onclick="abrirModalPersona('${escHtml(r.autorEmail||r.email||'')}','${escHtml(r.autor||'')}')">
-          <td>${escHtml(r.autor)}</td>
+        const em = escHtml(r.autorEmail || r.email || '');
+        const au = escHtml(r.autor || '');
+        return `<tr data-email="${em}" style="cursor:pointer"
+                    onclick="verDetalleCCPersona('${em}','${au}')">
+          <td>${escHtml(r.autor)} <button class="btn-icon" title="Editar datos" onclick="event.stopPropagation();abrirModalPersona('${em}','${au}')">✏</button></td>
           <td>${escHtml(fn)}</td>
-          <td class="num">${barCell(r.totalHoras, maxHorasPersona)}</td>
-          <td class="num">${r.entradas}</td>
+          <td class="num">${r.totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
         </tr>`;
       }).join('');
     }
@@ -876,7 +877,51 @@ function cerrarModalPersona() {
 }
 
 // Cerrar con Escape
-document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModalPersona(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    cerrarModalPersona();
+    cerrarPCCModal();
+  }
+});
+
+// ─── Detalle CC por persona ──────────────────────────────
+function verDetalleCCPersona(email, nombre) {
+  const rows = (reportData?.detalle || []).filter(r =>
+    (r.autorEmail || '').toLowerCase() === email.toLowerCase()
+  );
+
+  const map = {};
+  rows.forEach(r => {
+    const cc = r.centroCosto || '(Sin CC)';
+    if (!map[cc]) map[cc] = { centroCosto: cc, totalHoras: 0 };
+    map[cc].totalHoras += r.horasLogueadas;
+  });
+
+  const ccRows = Object.values(map)
+    .map(r => ({ ...r, totalHoras: Math.round(r.totalHoras * 100) / 100 }))
+    .sort((a, b) => b.totalHoras - a.totalHoras);
+
+  const totalHoras = Math.round(ccRows.reduce((s, r) => s + r.totalHoras, 0) * 100) / 100;
+
+  document.getElementById('pcc-titulo').textContent = nombre;
+  const tbody = document.querySelector('#tbl-pcc-detalle tbody');
+  if (!ccRows.length) {
+    tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:var(--text-soft);padding:16px">Sin datos para el período</td></tr>';
+  } else {
+    tbody.innerHTML = ccRows.map(r =>
+      `<tr><td>${escHtml(r.centroCosto)}</td><td class="num">${r.totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td></tr>`
+    ).join('') +
+    `<tr class="tbl-total"><td><strong>Total</strong></td><td class="num"><strong>${totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</strong></td></tr>`;
+  }
+
+  document.getElementById('pcc-modal-backdrop').classList.remove('hidden');
+  document.getElementById('pcc-modal').classList.remove('hidden');
+}
+
+function cerrarPCCModal() {
+  document.getElementById('pcc-modal-backdrop').classList.add('hidden');
+  document.getElementById('pcc-modal').classList.add('hidden');
+}
 
 async function guardarPersona() {
   const email = document.getElementById('pm-email').value;
