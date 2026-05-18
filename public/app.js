@@ -325,17 +325,20 @@ async function renderReport(data) {
     } else {
       tbodyProy.innerHTML = data.resumenProyecto.map(r => {
         const pct = totalHorasProy > 0 ? (r.totalHoras / totalHorasProy * 100).toFixed(1) : '0.0';
-        return `<tr class="proyecto-row">
+        return `<tr class="proyecto-row" data-proy="${escHtml(r.proyecto)}">
           <td>${escHtml(r.proyecto)}</td>
           <td class="num">${r.totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
           <td class="num">${pct}%</td>
           <td class="num">${r.personas}</td>
         </tr>`;
       }).join('');
-      const trPEls = tbodyProy.querySelectorAll('tr.proyecto-row');
-      data.resumenProyecto.forEach((proy, i) => {
-        if (trPEls[i]) trPEls[i].addEventListener('click', () => toggleProyectoDetalle(trPEls[i], proy));
-      });
+      // Event delegation — un solo listener en el tbody, robusto ante ordenamiento
+      tbodyProy.onclick = function(e) {
+        const tr = e.target.closest('tr.proyecto-row');
+        if (!tr) return;
+        const proy = data.resumenProyecto.find(p => p.proyecto === tr.dataset.proy);
+        if (proy) toggleProyectoDetalle(tr, proy);
+      };
     }
   }
 
