@@ -531,6 +531,54 @@ tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .detail-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
 
 .tbl-scroll-x { overflow-x: auto; }
+
+/* Fila resaltada al presionar barra del gráfico */
+.row-highlight { background: #e8f0fe !important; }
+
+/* Cursor y chevron en filas de proyecto */
+.proyecto-row { cursor: pointer; }
+.proyecto-row td:first-child::before {
+  content: '▶';
+  font-size: .6rem;
+  color: var(--text-soft);
+  margin-right: 6px;
+  display: inline-block;
+}
+.proyecto-row.expanded td:first-child::before {
+  content: '▾';
+  font-size: .75rem;
+  color: var(--primary);
+}
+.proyecto-row.expanded { background: var(--bg) !important; }
+.proyecto-detail-row td {
+  padding: 0 !important;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
+}
+
+/* Fila resaltada al presionar barra del gráfico */
+.row-highlight { background: #e8f0fe !important; }
+
+/* Cursor en filas de proyecto (igual que persona) */
+.proyecto-row { cursor: pointer; }
+.proyecto-row td:first-child::before {
+  content: '▶';
+  font-size: .6rem;
+  color: var(--text-soft);
+  margin-right: 6px;
+  display: inline-block;
+}
+.proyecto-row.expanded td:first-child::before {
+  content: '▾';
+  font-size: .75rem;
+  color: var(--primary);
+}
+.proyecto-row.expanded { background: var(--bg) !important; }
+.proyecto-detail-row td {
+  padding: 0 !important;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
+}
 .tbl-cc-inline {
   width: 100%;
   max-width: 420px;

@@ -317,12 +317,27 @@ async function renderReport(data) {
   }
 
   // Tabla Proyectos
-  fillTable('tbl-proyectos', data.resumenProyecto, r => [
-    r.proyecto,
-    barCell(r.totalHoras, maxHorasProyecto),
-    r.personas,
-    r.entradas
-  ]);
+  const totalHorasProy = data.resumenProyecto.reduce((s, r) => s + r.totalHoras, 0);
+  const tbodyProy = document.querySelector('#tbl-proyectos tbody');
+  if (tbodyProy) {
+    if (!data.resumenProyecto.length) {
+      tbodyProy.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-soft);padding:20px">Sin datos</td></tr>';
+    } else {
+      tbodyProy.innerHTML = data.resumenProyecto.map(r => {
+        const pct = totalHorasProy > 0 ? (r.totalHoras / totalHorasProy * 100).toFixed(1) : '0.0';
+        return `<tr class="proyecto-row">
+          <td>${escHtml(r.proyecto)}</td>
+          <td class="num">${barCell(r.totalHoras, maxHorasProyecto)}</td>
+          <td class="num">${pct}%</td>
+          <td class="num">${r.personas}</td>
+        </tr>`;
+      }).join('');
+      const trPEls = tbodyProy.querySelectorAll('tr.proyecto-row');
+      data.resumenProyecto.forEach((proy, i) => {
+        if (trPEls[i]) trPEls[i].addEventListener('click', () => toggleProyectoDetalle(trPEls[i], proy));
+      });
+    }
+  }
 
   // Tabla Centro de Costo
   fillTable('tbl-cc', data.resumenCentroCosto, r => {
@@ -742,7 +757,7 @@ function filterTable(tableId, query) {
   const q = query.toLowerCase();
   const rows = document.querySelectorAll(`#${tableId} tbody tr`);
   rows.forEach(tr => {
-    if (tr.classList.contains('persona-detail-row')) return;
+    if (tr.classList.contains('persona-detail-row') || tr.classList.contains('proyecto-detail-row')) return;
     tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
   });
 }
@@ -751,9 +766,13 @@ function filterTable(tableId, query) {
 function sortTable(tableId, colIndex) {
   const table = document.getElementById(tableId);
   const tbody = table.querySelector('tbody');
-  // Colapsar detalle expandido antes de reordenar
-  tbody.querySelectorAll('tr.persona-detail-row').forEach(r => r.remove());
-  tbody.querySelectorAll('tr.persona-row.expanded').forEach(r => r.classList.remove('expanded'));
+  // Colapsar y destruir charts antes de reordenar
+  tbody.querySelectorAll('tr.persona-detail-row, tr.proyecto-detail-row').forEach(r => r.remove());
+  tbody.querySelectorAll('tr.persona-row.expanded, tr.proyecto-row.expanded').forEach(r => {
+    r.classList.remove('expanded');
+    const cid = r.dataset.chartId;
+    if (cid && _proyCharts[cid]) { _proyCharts[cid].destroy(); delete _proyCharts[cid]; }
+  });
   const rows  = Array.from(tbody.querySelectorAll('tr'));
 
   const state = sortState[tableId] || { col: -1, asc: true };
@@ -1006,6 +1025,159 @@ function formatMonth(yyyymm) {
   const [y, m] = yyyymm.split('-');
   const names = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   return `${names[parseInt(m, 10) - 1]} ${y}`;
+}
+
+// ─── Detalle por Proyecto (collapse inline) ───────────────
+function toggleProyectoDetalle(tr, proy) {
+  const isExpanded = tr.classList.contains('expanded');
+
+  // Colapsar previos y destruir charts
+  document.querySelectorAll('#tbl-proyectos tbody tr.proyecto-row.expanded').forEach(row => {
+    row.classList.remove('expanded');
+    const cid = row.dataset.chartId;
+    if (cid && _proyCharts[cid]) { _proyCharts[cid].destroy(); delete _proyCharts[cid]; }
+    const next = row.nextElementSibling;
+    if (next?.classList.contains('proyecto-detail-row')) next.remove();
+  });
+
+  if (isExpanded) return;
+
+  const proyNombre = proy.proyecto;
+  const rows = (reportData?.detalle || []).filter(r =>
+    (r.proyectoMapeado || r.proyecto) === proyNombre
+  );
+
+  const totalHoras = Math.round(rows.reduce((s, r) => s + r.horasLogueadas, 0) * 100) / 100;
+  const fmt  = h  => (Math.round(h * 100) / 100).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const pct  = h  => totalHoras > 0 ? (h / totalHoras * 100).toFixed(1) + '%' : '–';
+  const DASH = `<span style="color:var(--text-soft)">–</span>`;
+
+  // ── Tab Personas ──────────────────────────────────────
+  const personaMap = {};
+  rows.forEach(r => {
+    const key = r.autorEmail || r.autor;
+    if (!personaMap[key]) personaMap[key] = { nombre: r.autor, h: 0 };
+    personaMap[key].h += r.horasLogueadas;
+  });
+  const personaRows = Object.values(personaMap)
+    .map(p => ({ ...p, h: Math.round(p.h * 100) / 100 }))
+    .sort((a, b) => b.h - a.h);
+
+  const personaTableHtml = personaRows.length
+    ? `<table class="tbl-cc-inline">
+        <thead><tr><th>Persona</th><th class="num">Horas</th><th class="num">%</th></tr></thead>
+        <tbody>
+          ${personaRows.map(p =>
+            `<tr><td>${escHtml(p.nombre)}</td><td class="num">${fmt(p.h)}</td><td class="num">${pct(p.h)}</td></tr>`
+          ).join('')}
+          <tr class="tbl-total"><td><strong>Total</strong></td><td class="num"><strong>${fmt(totalHoras)}</strong></td><td class="num"><strong>100%</strong></td></tr>
+        </tbody>
+      </table>`
+    : '<p style="color:var(--text-soft);font-size:.85rem">Sin datos para el período</p>';
+
+  // ── Tab Evolución mensual ─────────────────────────────
+  const monthMap = {};
+  rows.forEach(r => {
+    const mon = r.fecha.substring(0, 7);
+    monthMap[mon] = (monthMap[mon] || 0) + r.horasLogueadas;
+  });
+  const months     = Object.keys(monthMap).sort();
+  const monthHours = months.map(m => Math.round(monthMap[m] * 100) / 100);
+  const pcts       = monthHours.map(h => totalHoras > 0 ? +(h / totalHoras * 100).toFixed(1) : 0);
+
+  const chartId = 'proy-chart-' + (++_proyChartSeq);
+
+  const mensualContent = months.length ? `
+    <div style="max-width:580px;margin-bottom:14px;padding-top:4px">
+      <canvas id="${chartId}" height="130"></canvas>
+    </div>
+    <table class="tbl-cc-inline">
+      <thead><tr><th>Mes</th><th class="num">Horas</th><th class="num">%</th></tr></thead>
+      <tbody>
+        ${months.map((m, i) =>
+          `<tr class="tbl-monthly-row" data-month="${m}">
+            <td>${formatMonth(m)}</td>
+            <td class="num">${fmt(monthHours[i])}</td>
+            <td class="num">${pcts[i]}%</td>
+          </tr>`
+        ).join('')}
+        <tr class="tbl-total"><td><strong>Total</strong></td><td class="num"><strong>${fmt(totalHoras)}</strong></td><td class="num"><strong>100%</strong></td></tr>
+      </tbody>
+    </table>`
+    : '<p style="color:var(--text-soft);font-size:.85rem">Sin datos para el período</p>';
+
+  // ── Render ────────────────────────────────────────────
+  const detailRow = document.createElement('tr');
+  detailRow.className = 'proyecto-detail-row';
+  detailRow.innerHTML =
+    `<td colspan="4"><div class="persona-detail-panel">
+      <div class="detail-tabs">
+        <button class="detail-tab active" data-tab="personas" onclick="switchDetailTab(this,'personas')">Personas</button>
+        <button class="detail-tab"        data-tab="mensual"  onclick="switchDetailTab(this,'mensual')">Evolución mensual</button>
+      </div>
+      <div class="detail-tab-content" data-content="personas">${personaTableHtml}</div>
+      <div class="detail-tab-content hidden" data-content="mensual">${mensualContent}</div>
+    </div></td>`;
+
+  tr.dataset.chartId = chartId;
+  tr.after(detailRow);
+  tr.classList.add('expanded');
+
+  // Inicializar Chart.js cuando el canvas está en el DOM
+  if (months.length) {
+    requestAnimationFrame(() => {
+      const canvas = document.getElementById(chartId);
+      if (!canvas || !window.Chart) return;
+      _proyCharts[chartId] = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: months.map(formatMonth),
+          datasets: [{
+            data: monthHours,
+            backgroundColor: '#4F81BD99',
+            borderColor: '#4F81BD',
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        plugins: [ChartDataLabels],
+        options: {
+          responsive: true,
+          layout: { padding: { top: 18 } },
+          plugins: {
+            legend: { display: false },
+            datalabels: {
+              anchor: 'end', align: 'end',
+              font: { size: 10, weight: '600' },
+              color: '#333',
+              formatter: (_v, ctx) => pcts[ctx.dataIndex] + '%'
+            },
+            tooltip: {
+              callbacks: {
+                label: ctx => ` ${ctx.raw.toLocaleString('es-AR')} h  (${pcts[ctx.dataIndex]}%)`
+              }
+            }
+          },
+          scales: {
+            y: { display: false },
+            x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+          },
+          onClick: (_ev, elements) => {
+            if (!elements.length) return;
+            const mon = months[elements[0].index];
+            // Resaltar fila en la tabla
+            detailRow.querySelectorAll('.tbl-monthly-row').forEach(r =>
+              r.classList.toggle('row-highlight', r.dataset.month === mon)
+            );
+            // Cambiar al tab mensual si no está activo
+            const panel = detailRow.querySelector('.persona-detail-panel');
+            const tabBtn = panel.querySelector('[data-tab="mensual"]');
+            if (tabBtn && !tabBtn.classList.contains('active')) switchDetailTab(tabBtn, 'mensual');
+          }
+        }
+      });
+    });
+  }
 }
 
 async function guardarPersona() {
