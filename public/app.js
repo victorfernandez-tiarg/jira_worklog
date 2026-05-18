@@ -919,19 +919,20 @@ document.addEventListener('keydown', e => {
 function togglePersonaDetalle(tr, persona) {
   const isExpanded = tr.classList.contains('expanded');
 
-  // Colapsar cualquier fila expandida previa
+  // Colapsar cualquier fila expandida previa (+ destruir charts)
   document.querySelectorAll('#tbl-personas tbody tr.persona-row.expanded').forEach(row => {
     row.classList.remove('expanded');
+    const cid = row.dataset.chartId;
+    if (cid && _proyCharts[cid]) { _proyCharts[cid].destroy(); delete _proyCharts[cid]; }
     const next = row.nextElementSibling;
     if (next?.classList.contains('persona-detail-row')) next.remove();
   });
 
-  if (isExpanded) return; // segundo clic cierra
+  if (isExpanded) return;
 
-  const email  = (persona.autorEmail || persona.email || '').toLowerCase();
-  const autor  = (persona.autor || '').toLowerCase();
+  const email = (persona.autorEmail || persona.email || '').toLowerCase();
+  const autor = (persona.autor || '').toLowerCase();
 
-  // Filtrar detalle por persona — match por email (primario) o nombre (fallback)
   const rows = (reportData?.detalle || []).filter(r => {
     const rEmail = (r.autorEmail || '').toLowerCase();
     const rAutor = (r.autor || '').toLowerCase();
@@ -942,7 +943,7 @@ function togglePersonaDetalle(tr, persona) {
   const fmt  = h => (Math.round(h * 100) / 100).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
   const DASH = `<span style="color:var(--text-soft)">–</span>`;
 
-  // ── Meses disponibles (para selector y tab mensual) ───
+  // ── Meses y CCs ───────────────────────────────────────
   const monthCCMap = {};
   rows.forEach(r => {
     const m  = r.fecha.substring(0, 7);
@@ -955,6 +956,9 @@ function togglePersonaDetalle(tr, persona) {
   const ccTotals = {};
   allCCs.forEach(cc => { ccTotals[cc] = months.reduce((s, m) => s + (monthCCMap[m]?.[cc] || 0), 0); });
   allCCs.sort((a, b) => ccTotals[b] - ccTotals[a]);
+
+  const totalHoras = Math.round(rows.reduce((s, r) => s + r.horasLogueadas, 0) * 100) / 100;
+  const personaChartId = 'persona-chart-' + (++_proyChartSeq);
 
   // ── Helper: tabla CC para un subconjunto de rows ──────
   function makeCCTable(subRows) {
@@ -977,8 +981,7 @@ function togglePersonaDetalle(tr, persona) {
     </table>`;
   }
 
-  // ── Tab 1: Por CC — con selector de mes (si > 1 mes) ─
-  const totalHoras = Math.round(rows.reduce((s, r) => s + r.horasLogueadas, 0) * 100) / 100;
+  // ── Tab 1: Por CC ─────────────────────────────────────
   const monthOptions = ['<option value="">Todos los meses</option>',
     ...months.map(m => `<option value="${m}">${formatMonth(m)}</option>`)
   ].join('');
@@ -991,25 +994,41 @@ function togglePersonaDetalle(tr, persona) {
       <div class="persona-cc-tbl">${makeCCTable(rows)}</div>`
     : `<div class="persona-cc-tbl">${makeCCTable(rows)}</div>`;
 
-  // ── Tab 2: matriz Mes × CC ────────────────────────────
-  let mensualTableHtml;
+  // ── Tab 2: Evolución mensual (chart + tabla) ──────────
+  let mensualContent;
   if (!months.length) {
-    mensualTableHtml = '<p style="color:var(--text-soft);font-size:.85rem">Sin datos para el período</p>';
+    mensualContent = '<p style="color:var(--text-soft);font-size:.85rem">Sin datos para el período</p>';
   } else {
-    const multiCC = allCCs.length > 1;
-    const thCols  = multiCC ? allCCs.map(cc => `<th class="num" title="${escHtml(cc)}">${escHtml(cc)}</th>`).join('') : '';
+    const multiCC   = allCCs.length > 1;
+    const ccSelHtml = multiCC
+      ? `<div class="proy-mes-wrap">
+          <span class="persona-detail-label" style="display:inline-block;margin-right:6px">CC:</span>
+          <select class="persona-cc-chart-select">
+            <option value="">Todos los CC</option>
+            ${allCCs.map(cc => `<option value="${escHtml(cc)}">${escHtml(cc)}</option>`).join('')}
+          </select>
+        </div>`
+      : '';
+
+    const thCols   = multiCC ? allCCs.map(cc => `<th class="num" title="${escHtml(cc)}">${escHtml(cc)}</th>`).join('') : '';
     const bodyRows = months.map(m => {
       const rowTotal = allCCs.reduce((s, cc) => s + (monthCCMap[m]?.[cc] || 0), 0);
-      const cells = multiCC
+      const cells    = multiCC
         ? allCCs.map(cc => { const h = monthCCMap[m]?.[cc] || 0; return `<td class="num">${h > 0 ? fmt(h) : DASH}</td>`; }).join('')
         : '';
-      return `<tr class="tbl-monthly-row" style="cursor:pointer" data-month="${m}"><td>${formatMonth(m)}</td>${cells}<td class="num"><strong>${fmt(rowTotal)}</strong></td></tr>`;
+      return `<tr class="tbl-monthly-row" style="cursor:pointer" data-month="${m}">
+        <td>${formatMonth(m)}</td>${cells}
+        <td class="num"><strong>${fmt(rowTotal)}</strong></td>
+      </tr>`;
     }).join('');
-    const footCells = multiCC
-      ? allCCs.map(cc => `<td class="num">${fmt(ccTotals[cc])}</td>`).join('')
-      : '';
-    mensualTableHtml =
-      `<div class="tbl-scroll-x"><table class="tbl-cc-inline">
+    const footCells = multiCC ? allCCs.map(cc => `<td class="num">${fmt(ccTotals[cc])}</td>`).join('') : '';
+
+    mensualContent = `
+      ${ccSelHtml}
+      <div style="max-width:580px;margin-bottom:14px;padding-top:4px">
+        <canvas id="${personaChartId}" height="130"></canvas>
+      </div>
+      <div class="tbl-scroll-x"><table class="tbl-cc-inline">
         <thead><tr><th>Mes</th>${thCols}<th class="num">${multiCC ? 'Total' : 'Horas'}</th></tr></thead>
         <tbody>
           ${bodyRows}
@@ -1024,21 +1043,24 @@ function togglePersonaDetalle(tr, persona) {
   detailRow.innerHTML =
     `<td colspan="3"><div class="persona-detail-panel">
       <div class="detail-tabs">
-        <button class="detail-tab active" data-tab="cc"     onclick="switchDetailTab(this,'cc')">Por CC</button>
+        <button class="detail-tab active" data-tab="cc"      onclick="switchDetailTab(this,'cc')">Por CC</button>
         <button class="detail-tab"        data-tab="mensual" onclick="switchDetailTab(this,'mensual')">Evolución mensual</button>
       </div>
       <div class="detail-tab-content" data-content="cc">${ccTabHtml}</div>
-      <div class="detail-tab-content hidden" data-content="mensual">${mensualTableHtml}</div>
+      <div class="detail-tab-content hidden" data-content="mensual">${mensualContent}</div>
     </div></td>`;
 
+  tr.dataset.chartId = personaChartId;
   tr.after(detailRow);
   tr.classList.add('expanded');
 
-  // ── Post-DOM: event listeners ─────────────────────────
-  const panel   = detailRow.querySelector('.persona-detail-panel');
-  const ccTbl   = detailRow.querySelector('.persona-cc-tbl');
+  // ── Post-DOM: referencias ─────────────────────────────
+  const panel     = detailRow.querySelector('.persona-detail-panel');
+  const ccTbl     = detailRow.querySelector('.persona-cc-tbl');
   const mesSelect = detailRow.querySelector('.proy-mes-select');
+  const ccChartSel = detailRow.querySelector('.persona-cc-chart-select');
 
+  // Tab Por CC — selector de mes
   function filtrarYMostrarCC(mon) {
     const subRows = mon ? rows.filter(r => r.fecha.startsWith(mon)) : rows;
     ccTbl.innerHTML = makeCCTable(subRows);
@@ -1046,20 +1068,73 @@ function togglePersonaDetalle(tr, persona) {
     const tabBtn = panel.querySelector('[data-tab="cc"]');
     if (tabBtn) switchDetailTab(tabBtn, 'cc');
   }
+  if (mesSelect) mesSelect.addEventListener('change', () => filtrarYMostrarCC(mesSelect.value));
 
-  if (mesSelect) {
-    mesSelect.addEventListener('change', () => filtrarYMostrarCC(mesSelect.value));
-  }
-
-  // Click en fila mensual → filtrar CC + volver al tab Por CC
+  // Filas mensuales → filtrar CC + volver a tab Por CC
   detailRow.querySelectorAll('.tbl-monthly-row').forEach(row => {
     row.addEventListener('click', () => {
-      detailRow.querySelectorAll('.tbl-monthly-row').forEach(r =>
-        r.classList.toggle('row-highlight', r === row)
-      );
+      detailRow.querySelectorAll('.tbl-monthly-row').forEach(r => r.classList.toggle('row-highlight', r === row));
       filtrarYMostrarCC(row.dataset.month);
     });
   });
+
+  // Tab Evolución mensual — chart con selector de CC
+  if (months.length) {
+    function buildPersonaChartData(ccFilter) {
+      return months.map(m => {
+        const h = ccFilter
+          ? (monthCCMap[m]?.[ccFilter] || 0)
+          : allCCs.reduce((s, cc) => s + (monthCCMap[m]?.[cc] || 0), 0);
+        return Math.round(h * 100) / 100;
+      });
+    }
+
+    function renderPersonaChart(ccFilter) {
+      if (_proyCharts[personaChartId]) { _proyCharts[personaChartId].destroy(); delete _proyCharts[personaChartId]; }
+      const canvas = document.getElementById(personaChartId);
+      if (!canvas || !window.Chart) return;
+      const data     = buildPersonaChartData(ccFilter);
+      const tot      = Math.round(data.reduce((s, h) => s + h, 0) * 100) / 100;
+      const chartPcts = data.map(h => tot > 0 ? +(h / tot * 100).toFixed(1) : 0);
+      _proyCharts[personaChartId] = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: months.map(formatMonth),
+          datasets: [{
+            data,
+            backgroundColor: '#9BBB5999',
+            borderColor: '#9BBB59',
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        plugins: [ChartDataLabels],
+        options: {
+          responsive: true,
+          layout: { padding: { top: 18 } },
+          plugins: {
+            legend: { display: false },
+            datalabels: {
+              anchor: 'end', align: 'end',
+              font: { size: 10, weight: '600' },
+              color: '#333',
+              formatter: (_v, ctx) => chartPcts[ctx.dataIndex] + '%'
+            },
+            tooltip: {
+              callbacks: { label: ctx => ` ${ctx.raw.toLocaleString('es-AR')} h  (${chartPcts[ctx.dataIndex]}%)` }
+            }
+          },
+          scales: {
+            y: { display: false },
+            x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+          }
+        }
+      });
+    }
+
+    if (ccChartSel) ccChartSel.addEventListener('change', () => renderPersonaChart(ccChartSel.value));
+    requestAnimationFrame(() => renderPersonaChart(ccChartSel?.value || ''));
+  }
 }
 
 function switchDetailTab(btn, tabName) {
