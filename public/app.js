@@ -930,7 +930,6 @@ function togglePersonaDetalle(tr, persona) {
 
   const email  = (persona.autorEmail || persona.email || '').toLowerCase();
   const autor  = (persona.autor || '').toLowerCase();
-  const nombre =  persona.autor || '';
 
   // Filtrar detalle por persona — match por email (primario) o nombre (fallback)
   const rows = (reportData?.detalle || []).filter(r => {
@@ -940,31 +939,10 @@ function togglePersonaDetalle(tr, persona) {
     return rAutor === autor;
   });
 
-  const fmt = h => (Math.round(h * 100) / 100).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const fmt  = h => (Math.round(h * 100) / 100).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
   const DASH = `<span style="color:var(--text-soft)">–</span>`;
 
-  // ── Tab 1: agrupación por CC ──────────────────────────
-  const ccMap = {};
-  rows.forEach(r => {
-    const cc = r.centroCosto || '(Sin CC)';
-    ccMap[cc] = (ccMap[cc] || 0) + r.horasLogueadas;
-  });
-  const ccRows = Object.entries(ccMap)
-    .map(([cc, h]) => ({ cc, h: Math.round(h * 100) / 100 }))
-    .sort((a, b) => b.h - a.h);
-  const totalHoras = Math.round(ccRows.reduce((s, r) => s + r.h, 0) * 100) / 100;
-
-  const ccTableHtml = ccRows.length
-    ? `<table class="tbl-cc-inline">
-        <thead><tr><th>Centro de Costo</th><th class="num">Horas</th></tr></thead>
-        <tbody>
-          ${ccRows.map(r => `<tr><td>${escHtml(r.cc)}</td><td class="num">${fmt(r.h)}</td></tr>`).join('')}
-          <tr class="tbl-total"><td><strong>Total</strong></td><td class="num"><strong>${fmt(totalHoras)}</strong></td></tr>
-        </tbody>
-      </table>`
-    : '<p style="color:var(--text-soft);font-size:.85rem">Sin datos para el período</p>';
-
-  // ── Tab 2: matriz Mes × CC ────────────────────────────
+  // ── Meses disponibles (para selector y tab mensual) ───
   const monthCCMap = {};
   rows.forEach(r => {
     const m  = r.fecha.substring(0, 7);
@@ -978,6 +956,42 @@ function togglePersonaDetalle(tr, persona) {
   allCCs.forEach(cc => { ccTotals[cc] = months.reduce((s, m) => s + (monthCCMap[m]?.[cc] || 0), 0); });
   allCCs.sort((a, b) => ccTotals[b] - ccTotals[a]);
 
+  // ── Helper: tabla CC para un subconjunto de rows ──────
+  function makeCCTable(subRows) {
+    const ccMap = {};
+    subRows.forEach(r => {
+      const cc = r.centroCosto || '(Sin CC)';
+      ccMap[cc] = (ccMap[cc] || 0) + r.horasLogueadas;
+    });
+    const ccRows = Object.entries(ccMap)
+      .map(([cc, h]) => ({ cc, h: Math.round(h * 100) / 100 }))
+      .sort((a, b) => b.h - a.h);
+    const tot = Math.round(ccRows.reduce((s, r) => s + r.h, 0) * 100) / 100;
+    if (!ccRows.length) return '<p style="color:var(--text-soft);font-size:.85rem">Sin datos para el período</p>';
+    return `<table class="tbl-cc-inline">
+      <thead><tr><th>Centro de Costo</th><th class="num">Horas</th></tr></thead>
+      <tbody>
+        ${ccRows.map(r => `<tr><td>${escHtml(r.cc)}</td><td class="num">${fmt(r.h)}</td></tr>`).join('')}
+        <tr class="tbl-total"><td><strong>Total</strong></td><td class="num"><strong>${fmt(tot)}</strong></td></tr>
+      </tbody>
+    </table>`;
+  }
+
+  // ── Tab 1: Por CC — con selector de mes (si > 1 mes) ─
+  const totalHoras = Math.round(rows.reduce((s, r) => s + r.horasLogueadas, 0) * 100) / 100;
+  const monthOptions = ['<option value="">Todos los meses</option>',
+    ...months.map(m => `<option value="${m}">${formatMonth(m)}</option>`)
+  ].join('');
+
+  const ccTabHtml = months.length > 1
+    ? `<div class="proy-mes-wrap">
+        <span class="persona-detail-label" style="display:inline-block;margin-right:6px">Mes:</span>
+        <select class="proy-mes-select">${monthOptions}</select>
+      </div>
+      <div class="persona-cc-tbl">${makeCCTable(rows)}</div>`
+    : `<div class="persona-cc-tbl">${makeCCTable(rows)}</div>`;
+
+  // ── Tab 2: matriz Mes × CC ────────────────────────────
   let mensualTableHtml;
   if (!months.length) {
     mensualTableHtml = '<p style="color:var(--text-soft);font-size:.85rem">Sin datos para el período</p>';
@@ -989,7 +1003,7 @@ function togglePersonaDetalle(tr, persona) {
       const cells = multiCC
         ? allCCs.map(cc => { const h = monthCCMap[m]?.[cc] || 0; return `<td class="num">${h > 0 ? fmt(h) : DASH}</td>`; }).join('')
         : '';
-      return `<tr><td>${formatMonth(m)}</td>${cells}<td class="num"><strong>${fmt(rowTotal)}</strong></td></tr>`;
+      return `<tr class="tbl-monthly-row" style="cursor:pointer" data-month="${m}"><td>${formatMonth(m)}</td>${cells}<td class="num"><strong>${fmt(rowTotal)}</strong></td></tr>`;
     }).join('');
     const footCells = multiCC
       ? allCCs.map(cc => `<td class="num">${fmt(ccTotals[cc])}</td>`).join('')
@@ -1013,12 +1027,39 @@ function togglePersonaDetalle(tr, persona) {
         <button class="detail-tab active" data-tab="cc"     onclick="switchDetailTab(this,'cc')">Por CC</button>
         <button class="detail-tab"        data-tab="mensual" onclick="switchDetailTab(this,'mensual')">Evolución mensual</button>
       </div>
-      <div class="detail-tab-content" data-content="cc">${ccTableHtml}</div>
+      <div class="detail-tab-content" data-content="cc">${ccTabHtml}</div>
       <div class="detail-tab-content hidden" data-content="mensual">${mensualTableHtml}</div>
     </div></td>`;
 
   tr.after(detailRow);
   tr.classList.add('expanded');
+
+  // ── Post-DOM: event listeners ─────────────────────────
+  const panel   = detailRow.querySelector('.persona-detail-panel');
+  const ccTbl   = detailRow.querySelector('.persona-cc-tbl');
+  const mesSelect = detailRow.querySelector('.proy-mes-select');
+
+  function filtrarYMostrarCC(mon) {
+    const subRows = mon ? rows.filter(r => r.fecha.startsWith(mon)) : rows;
+    ccTbl.innerHTML = makeCCTable(subRows);
+    if (mesSelect) mesSelect.value = mon || '';
+    const tabBtn = panel.querySelector('[data-tab="cc"]');
+    if (tabBtn) switchDetailTab(tabBtn, 'cc');
+  }
+
+  if (mesSelect) {
+    mesSelect.addEventListener('change', () => filtrarYMostrarCC(mesSelect.value));
+  }
+
+  // Click en fila mensual → filtrar CC + volver al tab Por CC
+  detailRow.querySelectorAll('.tbl-monthly-row').forEach(row => {
+    row.addEventListener('click', () => {
+      detailRow.querySelectorAll('.tbl-monthly-row').forEach(r =>
+        r.classList.toggle('row-highlight', r === row)
+      );
+      filtrarYMostrarCC(row.dataset.month);
+    });
+  });
 }
 
 function switchDetailTab(btn, tabName) {
