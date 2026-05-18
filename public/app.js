@@ -346,16 +346,28 @@ async function renderReport(data) {
   }
 
   // Tabla Centro de Costo
-  fillTable('tbl-cc', data.resumenCentroCosto, r => {
-    const pct = r.totalHoras > 0 ? Math.round(r.productivo / r.totalHoras * 100) : 0;
-    return [
-      r.centroCosto,
-      r.totalHoras.toLocaleString('es-AR'),
-      r.productivo.toLocaleString('es-AR'),
-      r.improductivo.toLocaleString('es-AR'),
-      `<div class="bar-wrap"><div class="bar-bg"><div class="bar-fill prod" style="width:${pct}%"></div></div>${pct}%</div>`
-    ];
-  });
+  const totalHorasCC  = data.resumenCentroCosto.reduce((s, r) => s + r.totalHoras, 0);
+  const tbodyCC = document.querySelector('#tbl-cc tbody');
+  if (tbodyCC) {
+    if (!data.resumenCentroCosto.length) {
+      tbodyCC.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-soft);padding:20px">Sin datos</td></tr>';
+    } else {
+      tbodyCC.innerHTML = data.resumenCentroCosto.map(r => {
+        const pct = totalHorasCC > 0 ? (r.totalHoras / totalHorasCC * 100).toFixed(1) : '0.0';
+        return `<tr class="cc-row" data-cc="${escHtml(r.centroCosto)}">
+          <td>${escHtml(r.centroCosto)}</td>
+          <td class="num">${r.totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+          <td class="num">${pct}%</td>
+        </tr>`;
+      }).join('');
+      tbodyCC.onclick = function(e) {
+        const tr = e.target.closest('tr.cc-row');
+        if (!tr) return;
+        const cc = data.resumenCentroCosto.find(c => c.centroCosto === tr.dataset.cc);
+        if (cc) toggleCCDetalle(tr, cc);
+      };
+    }
+  }
 
   // Tabla Detalle
   const jiraBase = window._jiraBase || '';
@@ -763,7 +775,7 @@ function filterTable(tableId, query) {
   const q = query.toLowerCase();
   const rows = document.querySelectorAll(`#${tableId} tbody tr`);
   rows.forEach(tr => {
-    if (tr.classList.contains('persona-detail-row') || tr.classList.contains('proyecto-detail-row')) return;
+    if (tr.classList.contains('persona-detail-row') || tr.classList.contains('proyecto-detail-row') || tr.classList.contains('cc-detail-row')) return;
     tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
   });
 }
@@ -773,8 +785,8 @@ function sortTable(tableId, colIndex) {
   const table = document.getElementById(tableId);
   const tbody = table.querySelector('tbody');
   // Colapsar y destruir charts antes de reordenar
-  tbody.querySelectorAll('tr.persona-detail-row, tr.proyecto-detail-row').forEach(r => r.remove());
-  tbody.querySelectorAll('tr.persona-row.expanded, tr.proyecto-row.expanded').forEach(r => {
+  tbody.querySelectorAll('tr.persona-detail-row, tr.proyecto-detail-row, tr.cc-detail-row').forEach(r => r.remove());
+  tbody.querySelectorAll('tr.persona-row.expanded, tr.proyecto-row.expanded, tr.cc-row.expanded').forEach(r => {
     r.classList.remove('expanded');
     const cid = r.dataset.chartId;
     if (cid && _proyCharts[cid]) { _proyCharts[cid].destroy(); delete _proyCharts[cid]; }
@@ -1134,6 +1146,190 @@ function togglePersonaDetalle(tr, persona) {
 
     if (ccChartSel) ccChartSel.addEventListener('change', () => renderPersonaChart(ccChartSel.value));
     requestAnimationFrame(() => renderPersonaChart(ccChartSel?.value || ''));
+  }
+}
+
+// ─── Detalle por Centro de Costo (collapse inline) ───────
+function toggleCCDetalle(tr, cc) {
+  const isExpanded = tr.classList.contains('expanded');
+
+  // Colapsar previos y destruir charts
+  document.querySelectorAll('#tbl-cc tbody tr.cc-row.expanded').forEach(row => {
+    row.classList.remove('expanded');
+    const cid = row.dataset.chartId;
+    if (cid && _proyCharts[cid]) { _proyCharts[cid].destroy(); delete _proyCharts[cid]; }
+    const next = row.nextElementSibling;
+    if (next?.classList.contains('cc-detail-row')) next.remove();
+  });
+
+  if (isExpanded) return;
+
+  const ccNombre = cc.centroCosto;
+  const rows = (reportData?.detalle || []).filter(r =>
+    (r.centroCosto || 'Sin Centro de Costo') === ccNombre
+  );
+
+  const totalHoras = Math.round(rows.reduce((s, r) => s + r.horasLogueadas, 0) * 100) / 100;
+  const fmt = h => (Math.round(h * 100) / 100).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  // ── Evolución mensual ─────────────────────────────────
+  const monthMap = {};
+  rows.forEach(r => {
+    const mon = r.fecha.substring(0, 7);
+    monthMap[mon] = (monthMap[mon] || 0) + r.horasLogueadas;
+  });
+  const months     = Object.keys(monthMap).sort();
+  const monthHours = months.map(m => Math.round(monthMap[m] * 100) / 100);
+  const pcts       = monthHours.map(h => totalHoras > 0 ? +(h / totalHoras * 100).toFixed(1) : 0);
+
+  const ccChartId = 'cc-chart-' + (++_proyChartSeq);
+
+  // ── Helper: tabla personas para un subconjunto ────────
+  function makePersonaTable(subRows) {
+    const pMap = {};
+    subRows.forEach(r => {
+      const key = r.autorEmail || r.autor;
+      if (!pMap[key]) pMap[key] = { nombre: r.autor, h: 0 };
+      pMap[key].h += r.horasLogueadas;
+    });
+    const pRows = Object.values(pMap)
+      .map(p => ({ ...p, h: Math.round(p.h * 100) / 100 }))
+      .sort((a, b) => b.h - a.h);
+    const tot = Math.round(pRows.reduce((s, p) => s + p.h, 0) * 100) / 100;
+    if (!pRows.length) return '<p style="color:var(--text-soft);font-size:.85rem">Sin datos para el período</p>';
+    return `<table class="tbl-cc-inline">
+      <thead><tr><th>Persona</th><th class="num">Horas</th><th class="num">%</th></tr></thead>
+      <tbody>
+        ${pRows.map(p => `<tr>
+          <td>${escHtml(p.nombre)}</td>
+          <td class="num">${fmt(p.h)}</td>
+          <td class="num">${tot > 0 ? (p.h / tot * 100).toFixed(1) + '%' : '–'}</td>
+        </tr>`).join('')}
+        <tr class="tbl-total"><td><strong>Total</strong></td><td class="num"><strong>${fmt(tot)}</strong></td><td class="num"><strong>100%</strong></td></tr>
+      </tbody>
+    </table>`;
+  }
+
+  // ── Tab Personas ──────────────────────────────────────
+  const monthOptions = ['<option value="">Todos los meses</option>',
+    ...months.map(m => `<option value="${m}">${formatMonth(m)}</option>`)
+  ].join('');
+
+  const personasTabHtml = months.length > 1
+    ? `<div class="proy-mes-wrap">
+        <span class="persona-detail-label" style="display:inline-block;margin-right:6px">Mes:</span>
+        <select class="proy-mes-select">${monthOptions}</select>
+      </div>
+      <div class="proy-personas-tbl">${makePersonaTable(rows)}</div>`
+    : `<div class="proy-personas-tbl">${makePersonaTable(rows)}</div>`;
+
+  // ── Tab Evolución mensual ─────────────────────────────
+  const mensualContent = months.length
+    ? `<div style="max-width:580px;margin-bottom:14px;padding-top:4px">
+        <canvas id="${ccChartId}" height="130"></canvas>
+      </div>
+      <table class="tbl-cc-inline">
+        <thead><tr><th>Mes</th><th class="num">Horas</th><th class="num">%</th></tr></thead>
+        <tbody>
+          ${months.map((m, i) =>
+            `<tr class="tbl-monthly-row" style="cursor:pointer" data-month="${m}">
+              <td>${formatMonth(m)}</td>
+              <td class="num">${fmt(monthHours[i])}</td>
+              <td class="num">${pcts[i]}%</td>
+            </tr>`
+          ).join('')}
+          <tr class="tbl-total"><td><strong>Total</strong></td><td class="num"><strong>${fmt(totalHoras)}</strong></td><td class="num"><strong>100%</strong></td></tr>
+        </tbody>
+      </table>`
+    : '<p style="color:var(--text-soft);font-size:.85rem">Sin datos para el período</p>';
+
+  // ── Render ────────────────────────────────────────────
+  const detailRow = document.createElement('tr');
+  detailRow.className = 'cc-detail-row';
+  detailRow.innerHTML =
+    `<td colspan="3"><div class="persona-detail-panel">
+      <div class="detail-tabs">
+        <button class="detail-tab active" data-tab="personas" onclick="switchDetailTab(this,'personas')">Personas</button>
+        <button class="detail-tab"        data-tab="mensual"  onclick="switchDetailTab(this,'mensual')">Evolución mensual</button>
+      </div>
+      <div class="detail-tab-content" data-content="personas">${personasTabHtml}</div>
+      <div class="detail-tab-content hidden" data-content="mensual">${mensualContent}</div>
+    </div></td>`;
+
+  tr.dataset.chartId = ccChartId;
+  tr.after(detailRow);
+  tr.classList.add('expanded');
+  requestAnimationFrame(() => detailRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+
+  // ── Post-DOM: event listeners ─────────────────────────
+  const panel       = detailRow.querySelector('.persona-detail-panel');
+  const personasTbl = detailRow.querySelector('.proy-personas-tbl');
+  const mesSelect   = detailRow.querySelector('.proy-mes-select');
+
+  function filtrarYMostrar(mon) {
+    const subRows = mon ? rows.filter(r => r.fecha.startsWith(mon)) : rows;
+    personasTbl.innerHTML = makePersonaTable(subRows);
+    if (mesSelect) mesSelect.value = mon || '';
+    const tabBtn = panel.querySelector('[data-tab="personas"]');
+    if (tabBtn) switchDetailTab(tabBtn, 'personas');
+  }
+
+  if (mesSelect) mesSelect.addEventListener('change', () => filtrarYMostrar(mesSelect.value));
+
+  detailRow.querySelectorAll('.tbl-monthly-row').forEach(row => {
+    row.addEventListener('click', () => {
+      detailRow.querySelectorAll('.tbl-monthly-row').forEach(r => r.classList.toggle('row-highlight', r === row));
+      filtrarYMostrar(row.dataset.month);
+    });
+  });
+
+  if (months.length) {
+    requestAnimationFrame(() => {
+      const canvas = document.getElementById(ccChartId);
+      if (!canvas || !window.Chart) return;
+      _proyCharts[ccChartId] = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: months.map(formatMonth),
+          datasets: [{
+            data: monthHours,
+            backgroundColor: '#C0504D99',
+            borderColor: '#C0504D',
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        plugins: [ChartDataLabels],
+        options: {
+          responsive: true,
+          layout: { padding: { top: 18 } },
+          plugins: {
+            legend: { display: false },
+            datalabels: {
+              anchor: 'end', align: 'end',
+              font: { size: 10, weight: '600' },
+              color: '#333',
+              formatter: (_v, ctx) => pcts[ctx.dataIndex] + '%'
+            },
+            tooltip: {
+              callbacks: { label: ctx => ` ${ctx.raw.toLocaleString('es-AR')} h  (${pcts[ctx.dataIndex]}%)` }
+            }
+          },
+          scales: {
+            y: { display: false },
+            x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+          },
+          onClick: (_ev, elements) => {
+            if (!elements.length) return;
+            const mon = months[elements[0].index];
+            detailRow.querySelectorAll('.tbl-monthly-row').forEach(r =>
+              r.classList.toggle('row-highlight', r.dataset.month === mon)
+            );
+            filtrarYMostrar(mon);
+          }
+        }
+      });
+    });
   }
 }
 

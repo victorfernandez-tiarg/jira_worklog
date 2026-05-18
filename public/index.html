@@ -170,6 +170,7 @@
     <div id="tab-cc" class="tab-content card hidden">
       <div class="table-header">
         <h3>Resumen por Centro de Costo</h3>
+        <p class="table-hint">Hacé clic en un CC para ver personas y evolución mensual.</p>
         <div class="table-actions">
           <input type="text" class="search-input" placeholder="🔍 Filtrar..." oninput="filterTable('tbl-cc', this.value)" />
           <button class="btn btn-sm btn-outline" onclick="exportarExcel('resumenCentroCosto')">⬇ Excel</button>
@@ -180,10 +181,8 @@
           <thead>
             <tr>
               <th onclick="sortTable('tbl-cc',0)">Centro de Costo ↕</th>
-              <th onclick="sortTable('tbl-cc',1)" class="num">Total Horas ↕</th>
-              <th onclick="sortTable('tbl-cc',2)" class="num">Productivo ↕</th>
-              <th onclick="sortTable('tbl-cc',3)" class="num">Improductivo ↕</th>
-              <th onclick="sortTable('tbl-cc',4)" class="num">% Prod ↕</th>
+              <th onclick="sortTable('tbl-cc',1)" class="num">Horas ↕</th>
+              <th onclick="sortTable('tbl-cc',2)" class="num">% Total ↕</th>
             </tr>
           </thead>
           <tbody></tbody>
