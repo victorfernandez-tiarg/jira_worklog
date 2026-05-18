@@ -1007,8 +1007,6 @@ function formatMonth(yyyymm) {
   const names = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   return `${names[parseInt(m, 10) - 1]} ${y}`;
 }
-  tr.classList.add('expanded');
-}
 
 async function guardarPersona() {
   const email = document.getElementById('pm-email').value;
