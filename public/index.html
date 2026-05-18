@@ -195,9 +195,14 @@
       <div class="table-header">
         <h3>Distribución por Centro de Costo</h3>
         <div class="table-actions">
+          <div class="dist-type-wrap">
+            <button class="btn btn-sm btn-outline dist-type-btn active" data-type="doughnut" onclick="switchDistChart(this)">🍩 Torta</button>
+            <button class="btn btn-sm btn-outline dist-type-btn" data-type="bar" onclick="switchDistChart(this)">📊 Barras</button>
+          </div>
           <button class="btn btn-sm btn-outline" onclick="exportarExcel('resumenCentroCosto')">⬇ Excel</button>
         </div>
       </div>
+      <p class="table-hint">Hacé clic en una fila o en el gráfico para ver proyectos y evolución mensual del CC.</p>
       <div class="dist-layout">
         <div class="dist-table-wrap">
           <table id="tbl-dist">
@@ -221,6 +226,11 @@
         <div class="dist-chart-wrap">
           <canvas id="chart-cc"></canvas>
         </div>
+      </div>
+      <!-- Evolución mensual de todos los CCs apilada -->
+      <div class="dist-evolucion-wrap hidden">
+        <h4 class="dist-evolucion-title">Evolución mensual por Centro de Costo</h4>
+        <canvas id="chart-cc-evolucion"></canvas>
       </div>
     </div>
 

@@ -392,25 +392,31 @@ async function renderReport(data) {
 }
 
 // ─── Render: Distribución % por CC ─────────────────────────
-let _chartCC = null;  // instancia Chart.js reutilizable
+let _chartCC          = null;
+let _chartCCEvolucion = null;
+let _distSorted       = [];
+let _distTotal        = 0;
+let _distChartType    = 'doughnut';
 
 function renderDistribucion(resumenCC) {
+  if (!resumenCC || !resumenCC.length) return;
   const totalHoras = resumenCC.reduce((s, r) => s + r.totalHoras, 0);
   if (!totalHoras) return;
 
-  // Ordenar por horas desc
-  const sorted = [...resumenCC].sort((a, b) => b.totalHoras - a.totalHoras);
+  _distSorted = [...resumenCC].sort((a, b) => b.totalHoras - a.totalHoras);
+  _distTotal  = totalHoras;
 
-  // Tabla
+  // ── Tabla ──────────────────────────────────────────────────
   const tbody = document.querySelector('#tbl-dist tbody');
   if (tbody) {
-    tbody.innerHTML = sorted.map(r => {
-      const pct = (r.totalHoras / totalHoras * 100);
+    tbody.innerHTML = _distSorted.map(r => {
+      const pct    = r.totalHoras / totalHoras * 100;
       const pctStr = pct.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const fillW = Math.round(pct);
-      return `<tr>
-        <td>${escHtml(r.centroCosto || 'Sin CC')}</td>
-        <td class="num">${r.totalHoras.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+      const fillW  = Math.min(100, Math.round(pct));
+      const ccName = escHtml(r.centroCosto || 'Sin CC');
+      return `<tr class="dist-cc-row" data-cc="${ccName}">
+        <td>${ccName}</td>
+        <td class="num">${r.totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
         <td class="num">
           <div class="dist-pct-bar">
             <div class="dist-pct-track"><div class="dist-pct-fill" style="width:${fillW}%"></div></div>
@@ -419,50 +425,368 @@ function renderDistribucion(resumenCC) {
         </td>
       </tr>`;
     }).join('');
+
+    tbody.onclick = e => {
+      const tr = e.target.closest('tr.dist-cc-row');
+      if (tr) toggleDistRow(tr.dataset.cc);
+    };
   }
+
   const totalEl = document.getElementById('dist-total-horas');
-  if (totalEl) totalEl.textContent = totalHoras.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  if (totalEl) totalEl.innerHTML = `<strong>${totalHoras.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</strong>`;
 
-  // Gráfico de torta
+  // ── Gráfico principal ─────────────────────────────────────
+  renderDistChart(_distChartType);
+
+  // ── Evolución mensual ─────────────────────────────────────
+  renderDistEvolucion();
+}
+
+// Cambia entre torta y barras horizontales
+function switchDistChart(btn) {
+  document.querySelectorAll('.dist-type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDistChart(btn.dataset.type);
+}
+
+function renderDistChart(type) {
   const canvas = document.getElementById('chart-cc');
-  if (!canvas || typeof Chart === 'undefined') return;
-
-  // Paleta de colores variada
-  const PALETTE = [
-    '#4F81BD','#C0504D','#9BBB59','#8064A2','#4BACC6','#F79646',
-    '#2C4770','#8B0000','#2E7D32','#4A148C','#006064','#BF360C',
-    '#0D47A1','#880E4F','#1B5E20','#311B92','#004D40','#E65100',
-    '#37474F','#795548'
-  ];
-  const labels = sorted.map(r => r.centroCosto || 'Sin CC');
-  const values = sorted.map(r => parseFloat((r.totalHoras / totalHoras * 100).toFixed(2)));
-  const colors = sorted.map((_, i) => PALETTE[i % PALETTE.length]);
-
+  if (!canvas || typeof Chart === 'undefined' || !_distSorted.length) return;
   if (_chartCC) { _chartCC.destroy(); _chartCC = null; }
+  _distChartType = type;
 
-  _chartCC = new Chart(canvas, {
-    type: 'doughnut',
+  const labels = _distSorted.map(r => r.centroCosto || 'Sin CC');
+  const values = _distSorted.map(r => parseFloat((r.totalHoras / _distTotal * 100).toFixed(2)));
+  const hours  = _distSorted.map(r => r.totalHoras);
+  const colors = _distSorted.map((_, i) => PALETTE[i % PALETTE.length]);
+
+  const handleClick = (_ev, elements) => {
+    if (!elements.length) return;
+    toggleDistRow(labels[elements[0].index]);
+  };
+
+  if (type === 'doughnut') {
+    _chartCC = new Chart(canvas, {
+      type: 'doughnut',
+      plugins: [ChartDataLabels],
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'right', labels: { font: { size: 12 }, boxWidth: 14, padding: 10 } },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.label}: ${ctx.raw.toLocaleString('es-AR', {minimumFractionDigits:1,maximumFractionDigits:1})}%  (${hours[ctx.dataIndex].toLocaleString('es-AR', {minimumFractionDigits:2,maximumFractionDigits:2})} h)`
+            }
+          },
+          datalabels: {
+            formatter: val => val >= 4 ? `${val.toLocaleString('es-AR', {minimumFractionDigits:1,maximumFractionDigits:1})}%` : '',
+            font: { size: 11, weight: '700' },
+            color: '#fff'
+          }
+        },
+        onClick: handleClick
+      }
+    });
+  } else {
+    // Barras horizontales
+    _chartCC = new Chart(canvas, {
+      type: 'bar',
+      plugins: [ChartDataLabels],
+      data: { labels, datasets: [{ data: hours, backgroundColor: colors, borderWidth: 1, borderRadius: 4 }] },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        layout: { padding: { right: 56 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.raw.toLocaleString('es-AR', {minimumFractionDigits:2,maximumFractionDigits:2})} h  (${values[ctx.dataIndex].toLocaleString('es-AR', {minimumFractionDigits:1,maximumFractionDigits:1})}%)`
+            }
+          },
+          datalabels: {
+            anchor: 'end', align: 'end',
+            font: { size: 10, weight: '600' },
+            color: '#333',
+            formatter: (_v, ctx) => `${values[ctx.dataIndex].toLocaleString('es-AR', {minimumFractionDigits:1,maximumFractionDigits:1})}%`
+          }
+        },
+        scales: {
+          x: { display: false },
+          y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+        },
+        onClick: handleClick
+      }
+    });
+  }
+}
+
+function highlightDistChart(ccNombre) {
+  if (!_chartCC || !_distSorted.length) return;
+  const idx = _distSorted.findIndex(r => (r.centroCosto || 'Sin CC') === ccNombre);
+  const colors = _distSorted.map((_, i) => {
+    const base = PALETTE[i % PALETTE.length];
+    return i === idx ? base : base + '44';
+  });
+  _chartCC.data.datasets[0].backgroundColor = colors;
+  _chartCC.update('none');
+}
+
+function renderDistEvolucion() {
+  if (!reportData || !reportData.detalle) return;
+  const wrap = document.querySelector('.dist-evolucion-wrap');
+  const canvas = document.getElementById('chart-cc-evolucion');
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (_chartCCEvolucion) { _chartCCEvolucion.destroy(); _chartCCEvolucion = null; }
+
+  // Construir monthCCMap desde detalle
+  const monthCCMap = {};
+  reportData.detalle.forEach(r => {
+    const mon = r.fecha.substring(0, 7);
+    const cc  = r.centroCosto || 'Sin CC';
+    if (!monthCCMap[mon]) monthCCMap[mon] = {};
+    monthCCMap[mon][cc] = (monthCCMap[mon][cc] || 0) + r.horasLogueadas;
+  });
+
+  const months = Object.keys(monthCCMap).sort();
+  if (months.length < 2) { if (wrap) wrap.classList.add('hidden'); return; }
+  if (wrap) wrap.classList.remove('hidden');
+
+  const allCCs      = _distSorted.map(r => r.centroCosto || 'Sin CC');
+  const monthTotals = months.map(m => Object.values(monthCCMap[m]).reduce((s, v) => s + v, 0));
+
+  const datasets = allCCs.map((cc, i) => ({
+    label: cc,
+    data: months.map(m => Math.round((monthCCMap[m]?.[cc] || 0) * 100) / 100),
+    backgroundColor: PALETTE[i % PALETTE.length] + 'cc',
+    borderColor:     PALETTE[i % PALETTE.length],
+    borderWidth: 1
+  }));
+
+  _chartCCEvolucion = new Chart(canvas, {
+    type: 'bar',
     plugins: [ChartDataLabels],
-    data: {
-      labels,
-      datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }]
-    },
+    data: { labels: months.map(formatMonth), datasets },
     options: {
       responsive: true,
       plugins: {
-        legend: {
-          position: 'right',
-          labels: { font: { size: 12 }, boxWidth: 14, padding: 10 }
-        },
-        tooltip: { enabled: false },
+        legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12, padding: 8 } },
         datalabels: {
-          formatter: (val) => val >= 4 ? `${val.toLocaleString('es-AR', {minimumFractionDigits: 1, maximumFractionDigits: 1})}%` : '',
-          font: { size: 11, weight: '700' },
-          color: '#fff'
+          anchor: 'center', align: 'center',
+          font: { size: 9, weight: '600' },
+          color: '#fff',
+          display: (ctx) => {
+            const val = ctx.dataset.data[ctx.dataIndex];
+            const tot = monthTotals[ctx.dataIndex];
+            return tot > 0 && (val / tot * 100) >= 5;
+          },
+          formatter: (val, ctx) => {
+            const tot = monthTotals[ctx.dataIndex];
+            return tot > 0 ? (val / tot * 100).toFixed(0) + '%' : '';
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const val = ctx.raw;
+              const tot = monthTotals[ctx.dataIndex];
+              const pct = tot > 0 ? (val / tot * 100).toFixed(1) : '0.0';
+              return ` ${ctx.dataset.label}: ${val.toLocaleString('es-AR')} h (${pct}%)`;
+            }
+          }
         }
+      },
+      scales: {
+        y: { stacked: true, display: false },
+        x: { stacked: true, grid: { display: false }, ticks: { font: { size: 11 } } }
       }
     }
   });
+}
+
+// ─── Colapso de fila en tbl-dist ────────────────────────────
+function toggleDistRow(ccNombre) {
+  const tbody = document.querySelector('#tbl-dist tbody');
+  if (!tbody) return;
+
+  const tr = tbody.querySelector(`tr.dist-cc-row[data-cc="${CSS.escape(ccNombre)}"]`);
+  if (!tr) return;
+
+  // Resaltar en gráfico
+  highlightDistChart(ccNombre);
+
+  // ¿Ya está expandido?
+  const next = tr.nextElementSibling;
+  if (next && next.classList.contains('dist-detail-row')) {
+    const cId = tr.dataset.chartId;
+    if (cId && _proyCharts[cId]) { _proyCharts[cId].destroy(); delete _proyCharts[cId]; }
+    next.remove();
+    tr.classList.remove('expanded');
+    tr.dataset.chartId = '';
+    // Restaurar colores
+    if (_chartCC) {
+      _chartCC.data.datasets[0].backgroundColor = _distSorted.map((_, i) => PALETTE[i % PALETTE.length]);
+      _chartCC.update('none');
+    }
+    return;
+  }
+
+  // Colapsar cualquier otra fila abierta
+  tbody.querySelectorAll('.dist-detail-row').forEach(r => {
+    const prev = r.previousElementSibling;
+    if (prev) {
+      const cId = prev.dataset.chartId;
+      if (cId && _proyCharts[cId]) { _proyCharts[cId].destroy(); delete _proyCharts[cId]; }
+      prev.classList.remove('expanded');
+      prev.dataset.chartId = '';
+    }
+    r.remove();
+  });
+
+  tr.classList.add('expanded');
+
+  // Datos de detalle para este CC
+  const rows = (reportData.detalle || []).filter(r =>
+    (r.centroCosto || 'Sin Centro de Costo') === ccNombre ||
+    (r.centroCosto || 'Sin CC') === ccNombre
+  );
+  if (!rows.length) return;
+
+  const ccChartId = 'dist-chart-' + (++_proyChartSeq);
+  tr.dataset.chartId = ccChartId;
+
+  // Proyectos dentro del CC
+  const projMap = {};
+  rows.forEach(r => {
+    const p = r.proyectoMapeado || r.proyecto || '(Sin Proyecto)';
+    projMap[p] = (projMap[p] || 0) + r.horasLogueadas;
+  });
+  const projSorted = Object.entries(projMap).sort((a, b) => b[1] - a[1]);
+  const ccTotal    = rows.reduce((s, r) => s + r.horasLogueadas, 0);
+
+  // Mapa mensual x proyecto
+  const monthProjMap = {};
+  rows.forEach(r => {
+    const mon  = r.fecha.substring(0, 7);
+    const proj = r.proyectoMapeado || r.proyecto || '(Sin Proyecto)';
+    if (!monthProjMap[mon]) monthProjMap[mon] = {};
+    monthProjMap[mon][proj] = (monthProjMap[mon][proj] || 0) + r.horasLogueadas;
+  });
+  const months    = Object.keys(monthProjMap).sort();
+  const allProj   = projSorted.map(([p]) => p);
+  const multiProj = allProj.length > 1;
+  const monthHours = months.map(m =>
+    Math.round(rows.filter(r => r.fecha.startsWith(m)).reduce((s, r) => s + r.horasLogueadas, 0) * 100) / 100
+  );
+
+  // HTML tabla proyectos
+  const projTableHtml = `<table class="tbl-dist-detail">
+    <thead><tr><th>Proyecto</th><th class="num">Horas</th><th class="num">%</th></tr></thead>
+    <tbody>
+      ${projSorted.map(([p, h]) => `<tr>
+        <td>${escHtml(p)}</td>
+        <td class="num">${h.toLocaleString('es-AR', {minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        <td class="num">${(h / ccTotal * 100).toLocaleString('es-AR', {minimumFractionDigits:1,maximumFractionDigits:1})}%</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+
+  // HTML tabla meses
+  const monthTableHtml = months.length ? `<table class="tbl-dist-detail tbl-dist-monthly">
+    <thead><tr><th>Mes</th><th class="num">Horas</th><th class="num">%</th></tr></thead>
+    <tbody>
+      ${months.map((m, i) => `<tr>
+        <td>${formatMonth(m)}</td>
+        <td class="num">${monthHours[i].toLocaleString('es-AR', {minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        <td class="num">${(monthHours[i] / ccTotal * 100).toLocaleString('es-AR', {minimumFractionDigits:1,maximumFractionDigits:1})}%</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>` : '';
+
+  const detailRow = document.createElement('tr');
+  detailRow.className = 'dist-detail-row';
+  detailRow.innerHTML = `<td colspan="3">
+    <div class="dist-detail-inner">
+      <div class="dist-detail-left">
+        <strong class="dist-detail-title">Proyectos</strong>
+        ${projTableHtml}
+      </div>
+      ${months.length ? `<div class="dist-detail-right">
+        <strong class="dist-detail-title">Evolución mensual</strong>
+        <canvas id="${ccChartId}" height="160"></canvas>
+        ${monthTableHtml}
+      </div>` : ''}
+    </div>
+  </td>`;
+  tr.after(detailRow);
+
+  // Renderizar mini chart
+  if (months.length) {
+    requestAnimationFrame(() => {
+      const canvas = document.getElementById(ccChartId);
+      if (!canvas || !window.Chart) return;
+
+      let datasets, chartOptions;
+
+      if (!multiProj) {
+        datasets = [{ data: monthHours, backgroundColor: '#C0504D99', borderColor: '#C0504D', borderWidth: 1, borderRadius: 4 }];
+        chartOptions = {
+          responsive: true,
+          layout: { padding: { top: 16 } },
+          plugins: {
+            legend: { display: false },
+            datalabels: {
+              anchor: 'end', align: 'end',
+              font: { size: 9, weight: '600' }, color: '#333',
+              formatter: v => (v / ccTotal * 100).toFixed(1) + '%'
+            },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.raw.toLocaleString('es-AR')} h` } }
+          },
+          scales: { y: { display: false }, x: { grid: { display: false }, ticks: { font: { size: 10 } } } }
+        };
+      } else {
+        datasets = allProj.map((proj, i) => ({
+          label: proj,
+          data: months.map(m => Math.round((monthProjMap[m]?.[proj] || 0) * 100) / 100),
+          backgroundColor: PALETTE[i % PALETTE.length] + 'bb',
+          borderColor:     PALETTE[i % PALETTE.length],
+          borderWidth: 1
+        }));
+        chartOptions = {
+          responsive: true,
+          plugins: {
+            legend: { display: true, position: 'bottom', labels: { font: { size: 9 }, boxWidth: 10, padding: 6 } },
+            datalabels: {
+              anchor: 'center', align: 'center',
+              font: { size: 8, weight: '600' }, color: '#fff',
+              display: ctx => {
+                const val = ctx.dataset.data[ctx.dataIndex];
+                return ccTotal > 0 && (val / ccTotal * 100) >= 4;
+              },
+              formatter: val => (val / ccTotal * 100).toFixed(0) + '%'
+            },
+            tooltip: {
+              callbacks: {
+                label: ctx => ` ${ctx.dataset.label}: ${ctx.raw.toLocaleString('es-AR')} h (${(ctx.raw / ccTotal * 100).toFixed(1)}%)`
+              }
+            }
+          },
+          scales: {
+            y: { stacked: true, display: false },
+            x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } }
+          }
+        };
+      }
+
+      _proyCharts[ccChartId] = new Chart(canvas, {
+        type: 'bar',
+        data: { labels: months.map(formatMonth), datasets },
+        plugins: [ChartDataLabels],
+        options: chartOptions
+      });
+    });
+  }
 }
 
 // ═══════════════════════════════════════════════════════════

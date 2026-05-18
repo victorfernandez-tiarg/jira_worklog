@@ -250,6 +250,15 @@ tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
 }
 
 /* ─── Distribución % ─────────────────────────────────────── */
+.dist-type-wrap {
+  display: inline-flex;
+  gap: 6px;
+}
+.dist-type-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
 .dist-layout {
   display: flex;
   gap: 32px;
@@ -299,9 +308,89 @@ tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
 }
 .dist-chart-wrap {
   flex: 1 1 320px;
-  max-width: 420px;
+  max-width: 440px;
   position: relative;
 }
+/* Filas colapsables en tbl-dist */
+.dist-cc-row {
+  cursor: pointer;
+}
+.dist-cc-row td:first-child::before {
+  content: '▶';
+  display: inline-block;
+  margin-right: 6px;
+  font-size: .65em;
+  transition: transform .2s;
+  color: var(--muted);
+}
+.dist-cc-row.expanded td:first-child::before {
+  transform: rotate(90deg);
+}
+.dist-detail-row td {
+  padding: 0 !important;
+  background: var(--bg-subtle);
+  border-bottom: 2px solid var(--border);
+}
+.dist-detail-inner {
+  display: flex;
+  gap: 24px;
+  padding: 14px 16px 18px 28px;
+  flex-wrap: wrap;
+}
+.dist-detail-left {
+  flex: 0 0 260px;
+  min-width: 200px;
+}
+.dist-detail-right {
+  flex: 1 1 320px;
+  min-width: 240px;
+}
+.dist-detail-title {
+  display: block;
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 8px;
+}
+.tbl-dist-detail {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .85rem;
+}
+.tbl-dist-detail th,
+.tbl-dist-detail td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.tbl-dist-detail th {
+  font-size: .75rem;
+  color: var(--muted);
+}
+.tbl-dist-detail td.num,
+.tbl-dist-detail th.num { text-align: right; }
+.tbl-dist-monthly {
+  margin-top: 10px;
+  font-size: .8rem;
+}
+/* Evolución mensual apilada */
+.dist-evolucion-wrap {
+  margin-top: 32px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
+}
+.dist-evolucion-title {
+  font-size: .95rem;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0 0 16px;
+}
+.dist-evolucion-wrap canvas {
+  max-height: 300px;
+}
+
 
 /* ─── Gráficos interactivos ──────────────────────────────── */
 .graficos-filtros {
