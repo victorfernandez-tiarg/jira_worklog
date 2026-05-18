@@ -199,6 +199,12 @@
             <button class="btn btn-sm btn-outline dist-type-btn active" data-type="doughnut" onclick="switchDistChart(this)">🍩 Torta</button>
             <button class="btn btn-sm btn-outline dist-type-btn" data-type="bar" onclick="switchDistChart(this)">📊 Barras</button>
           </div>
+          <div class="filtro-group">
+            <label for="fil-dist-mes">Mes</label>
+            <select id="fil-dist-mes" onchange="actualizarDistribucion()">
+              <option value="">Todos</option>
+            </select>
+          </div>
           <button class="btn btn-sm btn-outline" onclick="exportarExcel('resumenCentroCosto')">⬇ Excel</button>
         </div>
       </div>
@@ -255,6 +261,12 @@
             <option value="">Todos</option>
             <option value="Productivo">Productivo</option>
             <option value="Improductivo">Improductivo</option>
+          </select>
+        </div>
+        <div class="filtro-group">
+          <label>Mes</label>
+          <select id="fil-mes" onchange="renderGraficos()">
+            <option value="">Todos</option>
           </select>
         </div>
         <button class="btn btn-sm btn-outline" onclick="limpiarFiltrosGraficos()">✕ Limpiar filtros</button>

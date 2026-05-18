@@ -406,6 +406,19 @@ function renderDistribucion(resumenCC) {
   _distSorted = [...resumenCC].sort((a, b) => b.totalHoras - a.totalHoras);
   _distTotal  = totalHoras;
 
+  // ── Poblar selector de meses (solo la primera vez) ─────────
+  if (reportData) {
+    const selMes = document.getElementById('fil-dist-mes');
+    if (selMes && selMes.options.length <= 1) {
+      const meses = [...new Set(reportData.detalle.map(r => r.fecha.substring(0, 7)))].sort();
+      meses.forEach(m => {
+        const o = document.createElement('option');
+        o.value = m; o.textContent = formatMonth(m);
+        selMes.appendChild(o);
+      });
+    }
+  }
+
   // ── Tabla ──────────────────────────────────────────────────
   const tbody = document.querySelector('#tbl-dist tbody');
   if (tbody) {
@@ -533,9 +546,42 @@ function highlightDistChart(ccNombre) {
   _chartCC.update('none');
 }
 
+function actualizarDistribucion() {
+  if (!reportData) return;
+  const mes = document.getElementById('fil-dist-mes')?.value || '';
+
+  // Colapsar filas y destruir mini charts
+  document.querySelector('#tbl-dist tbody')?.querySelectorAll('.dist-detail-row').forEach(r => {
+    const prev = r.previousElementSibling;
+    if (prev) {
+      const cId = prev.dataset.chartId;
+      if (cId && _proyCharts[cId]) { _proyCharts[cId].destroy(); delete _proyCharts[cId]; }
+      prev.classList.remove('expanded');
+      prev.dataset.chartId = '';
+    }
+    r.remove();
+  });
+
+  let resumen;
+  if (mes) {
+    const ccMap = {};
+    reportData.detalle.filter(r => r.fecha.startsWith(mes)).forEach(r => {
+      const cc = r.centroCosto || 'Sin CC';
+      ccMap[cc] = (ccMap[cc] || 0) + r.horasLogueadas;
+    });
+    resumen = Object.entries(ccMap).map(([centroCosto, totalHoras]) => ({ centroCosto, totalHoras }));
+  } else {
+    resumen = reportData.resumenCentroCosto;
+  }
+
+  renderDistribucion(resumen);
+}
+
 function renderDistEvolucion() {
   if (!reportData || !reportData.detalle) return;
+  const mes  = document.getElementById('fil-dist-mes')?.value || '';
   const wrap = document.querySelector('.dist-evolucion-wrap');
+  if (mes) { if (wrap) wrap.classList.add('hidden'); return; }
   const canvas = document.getElementById('chart-cc-evolucion');
   if (!canvas || typeof Chart === 'undefined') return;
   if (_chartCCEvolucion) { _chartCCEvolucion.destroy(); _chartCCEvolucion = null; }
@@ -807,6 +853,7 @@ function renderGraficos() {
   const filFun  = document.getElementById('fil-funcion')?.value  || '';
   const filCC   = document.getElementById('fil-cc')?.value       || '';
   const filProd = document.getElementById('fil-prod')?.value     || '';
+  const filMes  = document.getElementById('fil-mes')?.value      || '';
 
   // Poblar selects la primera vez
   poblarSelectGraficos();
@@ -816,6 +863,7 @@ function renderGraficos() {
   if (filFun)  rows = rows.filter(r => r.funcion === filFun);
   if (filCC)   rows = rows.filter(r => r.centroCosto === filCC);
   if (filProd) rows = rows.filter(r => r.prodImproductivo === filProd);
+  if (filMes)  rows = rows.filter(r => r.fecha.startsWith(filMes));
 
   // ── 1. Horas por persona (top 15) ─────────────────────────
   {
@@ -872,6 +920,7 @@ function poblarSelectGraficos() {
 
   const funciones = [...new Set(reportData.detalle.map(r => r.funcion).filter(Boolean))].sort();
   const ccs       = [...new Set(reportData.detalle.map(r => r.centroCosto).filter(Boolean))].sort();
+  const meses     = [...new Set(reportData.detalle.map(r => r.fecha.substring(0, 7)))].sort();
 
   funciones.forEach(f => {
     const o = document.createElement('option'); o.value = f; o.textContent = f;
@@ -881,10 +930,18 @@ function poblarSelectGraficos() {
     const o = document.createElement('option'); o.value = c; o.textContent = c;
     selCC.appendChild(o);
   });
+
+  const selMes = document.getElementById('fil-mes');
+  if (selMes) {
+    meses.forEach(m => {
+      const o = document.createElement('option'); o.value = m; o.textContent = formatMonth(m);
+      selMes.appendChild(o);
+    });
+  }
 }
 
 function limpiarFiltrosGraficos() {
-  ['fil-funcion','fil-cc','fil-prod'].forEach(id => {
+  ['fil-funcion','fil-cc','fil-prod','fil-mes'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -893,6 +950,8 @@ function limpiarFiltrosGraficos() {
   if (selFun) while (selFun.options.length > 1) selFun.remove(1);
   const selCC = document.getElementById('fil-cc');
   if (selCC) while (selCC.options.length > 1) selCC.remove(1);
+  const selMes = document.getElementById('fil-mes');
+  if (selMes) while (selMes.options.length > 1) selMes.remove(1);
   renderGraficos();
 }
 
