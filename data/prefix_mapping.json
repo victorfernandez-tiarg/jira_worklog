@@ -49,5 +49,6 @@
   "ELM":        { "centroCosto": "Elemental",        "prodImproductivo": "Productivo" },
   "UHE":        { "centroCosto": "INFRA",            "prodImproductivo": "Improductivo" },
   "TIP":        { "centroCosto": "TIPWISE",          "prodImproductivo": "Improductivo" },
-  "LEX":        { "centroCosto": "LEXIA",            "prodImproductivo": "Productivo" }
+  "LEX":        { "centroCosto": "LEXIA",            "prodImproductivo": "Productivo" },
+  "DAV":        {"centroCosto": "EV",                 "prodImproductivo": "Productivo"}
 }
