@@ -393,6 +393,11 @@ tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 
 /* ─── Filtros por columna: Detalle Completo ─────────────── */
+#tbl-detalle tr > :nth-child(5),
+#tbl-detalle tr > :nth-child(8) {
+  display: none;
+}
+
 .detalle-filter-row td {
   padding: 3px 4px !important;
   background: #f1f5f9;

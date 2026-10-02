@@ -1326,8 +1326,16 @@ function getExportData(tipo) {
     case 'resumenCentroCosto':
       return { rows: reportData.resumenCentroCosto, nombre: `centro_costo_${rango}` };
     case 'detalle':
-    default:
-      return { rows: reportData.detalle, nombre: `detalle_worklogs_${rango}` };
+    default: {
+      const columnasExcluidas = new Set([
+        'autorEmail', 'centroCosto', 'prodImproductivo',
+        'proyectoMapeado', 'nombre', 'nombreNomina'
+      ]);
+      const rows = reportData.detalle.map(row => Object.fromEntries(
+        Object.entries(row).filter(([columna]) => !columnasExcluidas.has(columna))
+      ));
+      return { rows, nombre: `detalle_worklogs_${rango}` };
+    }
   }
 }
 
