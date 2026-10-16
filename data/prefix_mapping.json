@@ -50,5 +50,6 @@
   "UHE":        { "centroCosto": "INFRA",            "prodImproductivo": "Improductivo" },
   "TIP":        { "centroCosto": "TIPWISE",          "prodImproductivo": "Improductivo" },
   "LEX":        { "centroCosto": "LEXIA",            "prodImproductivo": "Productivo" },
-  "DAV":        {"centroCosto": "EV",                 "prodImproductivo": "Productivo"}
+  "DAV":        {"centroCosto": "EV",                 "prodImproductivo": "Productivo"},
+  "NM": {"centroCosto": "NATIONAL_MED", "prodImproductivo": "Productivo"}
 }
